@@ -213,6 +213,7 @@ class App(ctk.CTkFrame):
         self._written_at = -100.0
         self._shown = {}
         self._ctrl_rows = {}    # key -> ControlRow
+        self._scene_dirty = True
 
         self.master.title("nanoKONTROL 2 Editor")
         self.master.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -489,6 +490,7 @@ class App(ctk.CTkFrame):
         if new_scene != self.scene:
             self.scene = new_scene
             self._failed = False
+            self._scene_dirty = True
             self.link.push(new_scene)
         self.refresh()
 
@@ -511,6 +513,7 @@ class App(ctk.CTkFrame):
 
     def _show_section(self, section):
         self._section = section
+        self._scene_dirty = True
         self.refresh()
 
     def _open_file(self):
@@ -574,6 +577,7 @@ class App(ctk.CTkFrame):
                     self.original = payload
                 if self.scene is None or not self.link.has_pending:
                     self.scene = payload
+                self._scene_dirty = True
                 self._show_msg("Scene read.", OK)
             elif kind == "writing":
                 self._writing = True
@@ -611,7 +615,8 @@ class App(ctk.CTkFrame):
         self._show("undo_state", undo,
                    lambda s: self._action_btns["undo_all"].configure(state=s))
 
-        if self.scene is not None:
+        if self.scene is not None and self._scene_dirty:
+            self._scene_dirty = False
             self._refresh_scene()
 
         self._draw_status()
@@ -619,48 +624,46 @@ class App(ctk.CTkFrame):
 
     def _refresh_scene(self):
         s = self.scene
+        sec = self._section
 
-        # global page widgets
-        ch_label = str(s.global_channel + 1)
-        gcm = self._ctrl_rows.get("ch1_channel")  # not the global channel menu; use key below
-        g_ch_widget = getattr(self, "_global_ch_menu", None)
-        if g_ch_widget and g_ch_widget.get() != ch_label:
-            g_ch_widget.set(ch_label)
-        cm_widget = getattr(self, "_ctrl_mode_menu", None)
-        cm_label = protocol.CONTROL_MODES[s.control_mode]
-        if cm_widget and cm_widget.get() != cm_label:
-            cm_widget.set(cm_label)
-        led_widget = getattr(self, "_led_seg", None)
-        led_label = protocol.LED_MODES[s.led_mode]
-        if led_widget and led_widget.get() != led_label:
-            led_widget.set(led_label)
+        if sec == "global":
+            ch_label = str(s.global_channel + 1)
+            g_ch_widget = getattr(self, "_global_ch_menu", None)
+            if g_ch_widget and g_ch_widget.get() != ch_label:
+                g_ch_widget.set(ch_label)
+            cm_widget = getattr(self, "_ctrl_mode_menu", None)
+            cm_label = protocol.CONTROL_MODES[s.control_mode]
+            if cm_widget and cm_widget.get() != cm_label:
+                cm_widget.set(cm_label)
+            led_widget = getattr(self, "_led_seg", None)
+            led_label = protocol.LED_MODES[s.led_mode]
+            if led_widget and led_widget.get() != led_label:
+                led_widget.set(led_label)
 
-        # channel pages
-        for g, grp in enumerate(s.groups):
-            ch_key = f"ch{g+1}_channel"
-            ch_widget = self._ctrl_rows.get(ch_key)
+        elif sec.startswith("ch"):
+            g = int(sec[2:]) - 1
+            grp = s.groups[g]
+            ch_widget = self._ctrl_rows.get(f"ch{g+1}_channel")
             if ch_widget:
                 ch_val = "Global" if grp.channel >= 16 else str(grp.channel + 1)
                 if ch_widget.get() != ch_val:
                     ch_widget.set(ch_val)
             for ctrl_name in protocol.CHANNEL_CONTROLS:
-                row_key = f"ch{g+1}_{ctrl_name}"
-                row = self._ctrl_rows.get(row_key)
+                row = self._ctrl_rows.get(f"ch{g+1}_{ctrl_name}")
                 if row:
                     row.show(grp.get_ctrl(ctrl_name))
 
-        # transport page
-        t = s.transport
-        t_ch_widget = self._ctrl_rows.get("transport_channel")
-        if t_ch_widget:
-            t_ch_val = "Global" if t.channel >= 16 else str(t.channel + 1)
-            if t_ch_widget.get() != t_ch_val:
-                t_ch_widget.set(t_ch_val)
-        for ctrl_name in protocol.TRANSPORT_CONTROLS:
-            row_key = f"transport_{ctrl_name}"
-            row = self._ctrl_rows.get(row_key)
-            if row:
-                row.show(t.get_ctrl(ctrl_name))
+        elif sec == "transport":
+            t = s.transport
+            t_ch_widget = self._ctrl_rows.get("transport_channel")
+            if t_ch_widget:
+                t_ch_val = "Global" if t.channel >= 16 else str(t.channel + 1)
+                if t_ch_widget.get() != t_ch_val:
+                    t_ch_widget.set(t_ch_val)
+            for ctrl_name in protocol.TRANSPORT_CONTROLS:
+                row = self._ctrl_rows.get(f"transport_{ctrl_name}")
+                if row:
+                    row.show(t.get_ctrl(ctrl_name))
 
     def _place_page(self, page):
         for child in self._content.winfo_children():
