@@ -71,6 +71,25 @@ TRANSPORT_CC_DEFAULTS = {
     "set_marker": 0x3C, "prev_marker": 0x3D, "next_marker": 0x3E,
 }
 
+# Custom DAW Assign — bytes 318–322 in the 339-byte scene
+CUSTOM_DAW_OFFSET = 318
+CUSTOM_DAW_LEN = 5
+CUSTOM_DAW_VALID = (0, 41, 42, 46, 47, 48, 49, 50, 127, 255)
+CUSTOM_DAW_LABELS = ("Assign 1", "Assign 2", "Assign 3", "Assign 4", "Assign 5")
+
+# LED control: CC messages on channel 16 (status 0xBF) in External LED mode
+LED_STATUS = 0xBF
+LED_CCS = {
+    "play": 0x29, "stop": 0x2A, "rew": 0x2B, "ff": 0x2C, "rec": 0x2D, "cycle": 0x2E,
+    "prev_track": 0x3A, "next_track": 0x3B,
+    "set_marker": 0x3C, "prev_marker": 0x3D, "next_marker": 0x3E,
+    **{f"solo_{i+1}":  0x20 + i for i in range(8)},
+    **{f"mute_{i+1}":  0x30 + i for i in range(8)},
+    **{f"prime_{i+1}": 0x40 + i for i in range(8)},
+}
+
+DAW_TEMPLATES = ("── Templates ──", "Factory Defaults", "Ableton Live", "Generic CC", "Clear All")
+
 
 class ProtocolError(Exception):
     pass
@@ -168,6 +187,7 @@ class Scene:
         self.led_mode: int = 0
         self.groups: List[ChannelGroup] = [ChannelGroup() for _ in range(NUM_GROUPS)]
         self.transport: TransportGroup = TransportGroup()
+        self.custom_daw: List[int] = [0] * CUSTOM_DAW_LEN
         self._apply_factory_defaults()
 
     def _apply_factory_defaults(self):
@@ -187,6 +207,7 @@ class Scene:
             ctrl.min_val = 0
             ctrl.max_val = 127
             ctrl.behaviour = 0
+        self.custom_daw = [0] * CUSTOM_DAW_LEN
 
     # --- serialise to 339 bytes ---
 
@@ -216,6 +237,8 @@ class Scene:
             data[base+2] = ctrl.cmd & 0x7F
             data[base+3] = ctrl.min_val & 0x7F
             data[base+4] = ctrl.max_val & 0x7F
+        for i, v in enumerate(self.custom_daw):
+            data[CUSTOM_DAW_OFFSET + i] = v & 0xFF
         return bytes(data)
 
     @classmethod
@@ -247,6 +270,10 @@ class Scene:
             )
             setattr(t, name, ctrl)
         s.transport = t
+        if len(data) >= CUSTOM_DAW_OFFSET + CUSTOM_DAW_LEN:
+            s.custom_daw = list(data[CUSTOM_DAW_OFFSET:CUSTOM_DAW_OFFSET + CUSTOM_DAW_LEN])
+        else:
+            s.custom_daw = [0] * CUSTOM_DAW_LEN
         return s
 
     def to_midi_bytes(self) -> bytes:

@@ -41,6 +41,7 @@ def _scene_to_dict(scene: Scene) -> dict:
         "led_mode": scene.led_mode,
         "groups": groups,
         "transport": transport,
+        "custom_daw": list(scene.custom_daw),
     }
 
 
@@ -77,6 +78,10 @@ def _scene_from_dict(data: dict) -> Scene:
             ctrl.cmd = int(vals["cmd"])
             ctrl.min_val = int(vals["min"])
             ctrl.max_val = int(vals["max"])
+        raw_daw = data.get("custom_daw", [0] * protocol.CUSTOM_DAW_LEN)
+        scene.custom_daw = [int(v) & 0xFF for v in raw_daw[:protocol.CUSTOM_DAW_LEN]]
+        while len(scene.custom_daw) < protocol.CUSTOM_DAW_LEN:
+            scene.custom_daw.append(0)
     except (KeyError, TypeError, ValueError) as e:
         raise ProtocolError(f"malformed preset: {e!r}") from None
     return scene

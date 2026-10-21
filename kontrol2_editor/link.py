@@ -13,11 +13,13 @@ All device I/O runs in a worker thread. The window reads from `events`:
   ("written", scene)
   ("write_failed", error)
 """
+import collections
 import queue
 import threading
 import time
 
 from . import device, midi_win
+from .protocol import LED_STATUS
 
 POLL_INTERVAL = 1.0
 WRITE_DELAY = 0.4
@@ -33,6 +35,8 @@ class KontrolLink:
         self.events = queue.Queue()
         self.port = None
         self.on_device = None   # scene the device currently has (last read or written)
+        self.monitor_msgs = collections.deque(maxlen=200)  # (timestamp, status, d1, d2)
+        self._learn_cb = None
         self._channel = 0
         self._lock = threading.Lock()
         self._pending = None
@@ -112,6 +116,30 @@ class KontrolLink:
             return False
         return midi_win.find_port(ins) is not None and midi_win.find_port(outs) is not None
 
+    def set_led(self, cc, on):
+        """Send a CC on channel 16 to control a button LED (External LED mode)."""
+        if self.port is not None:
+            try:
+                self.port.send_short(LED_STATUS, cc & 0x7F, 0x7F if on else 0x00)
+            except Exception:
+                pass
+
+    def start_learn(self, callback):
+        """Next CC or Note On from the device will call callback(kind, number)."""
+        self._learn_cb = callback
+
+    def cancel_learn(self):
+        self._learn_cb = None
+
+    def _on_short_all(self, status, data1, data2):
+        self.monitor_msgs.append((time.monotonic(), status, data1, data2))
+        msg_type = status & 0xF0
+        if msg_type in (0xB0, 0x90):
+            cb = self._learn_cb
+            if cb is not None:
+                self._learn_cb = None
+                cb("cc" if msg_type == 0xB0 else "note", data1)
+
     def _try_link(self):
         if not self._present():
             return
@@ -120,6 +148,7 @@ class KontrolLink:
         except (midi_win.MidiError, OSError) as e:
             self.events.put(("searching", e))
             return
+        port.on_short = self._on_short_all
         self.port = port
         self.events.put(("linked", None))
         if not self._read():
