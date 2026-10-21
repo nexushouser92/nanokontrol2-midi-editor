@@ -48,7 +48,7 @@ def _scene_to_dict(scene: Scene) -> dict:
 def _scene_from_dict(data: dict) -> Scene:
     try:
         if data.get("format") != FORMAT_NAME:
-            raise ProtocolError("not a nanoKONTROL 2 Editor preset")
+            raise ProtocolError("not a MIDI Editor nanoKONTROL 2 preset")
         if data.get("version") != FORMAT_VERSION:
             raise ProtocolError(f"unsupported preset version {data.get('version')!r}")
         scene = Scene()

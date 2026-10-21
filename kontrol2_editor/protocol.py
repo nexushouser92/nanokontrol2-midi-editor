@@ -88,9 +88,6 @@ LED_CCS = {
     **{f"prime_{i+1}": 0x40 + i for i in range(8)},
 }
 
-DAW_TEMPLATES = ("── Templates ──", "Factory Defaults", "Ableton Live", "Generic CC", "Clear All")
-
-
 class ProtocolError(Exception):
     pass
 
@@ -178,6 +175,17 @@ class TransportGroup:
         return t
 
 
+def _read_control(data: bytes, base: int) -> ControlSettings:
+    """Decode five control bytes, clamping anything the device should never send."""
+    return ControlSettings(
+        assign=min(data[base], len(ASSIGN_OPTS) - 1),
+        behaviour=data[base + 1] & 0x01,
+        cmd=data[base + 2] & 0x7F,
+        min_val=data[base + 3] & 0x7F,
+        max_val=data[base + 4] & 0x7F,
+    )
+
+
 class Scene:
     """Full nanoKONTROL 2 configuration: 339 internal bytes."""
 
@@ -188,9 +196,10 @@ class Scene:
         self.groups: List[ChannelGroup] = [ChannelGroup() for _ in range(NUM_GROUPS)]
         self.transport: TransportGroup = TransportGroup()
         self.custom_daw: List[int] = [0] * CUSTOM_DAW_LEN
-        self._apply_factory_defaults()
+        self.apply_factory_defaults()
 
-    def _apply_factory_defaults(self):
+    def apply_factory_defaults(self):
+        """Reset every control assignment and range; global channel and modes are kept."""
         for g, grp in enumerate(self.groups):
             grp.channel = 16
             grp.slider = ControlSettings(assign=1, cmd=g, min_val=0, max_val=127)
@@ -247,28 +256,17 @@ class Scene:
             raise ProtocolError(f"scene data too short: {len(data)} bytes")
         s = cls.__new__(cls)
         s.global_channel = data[0] & 0x0F
-        s.control_mode = data[1] & 0x07
+        s.control_mode = min(data[1], len(CONTROL_MODES) - 1)
         s.led_mode = data[2] & 0x01
         s.groups = []
         for offset in GROUP_OFFSETS:
-            grp = ChannelGroup(channel=data[offset])
+            grp = ChannelGroup(channel=min(data[offset], 16))
             for name, ctrl_off in CHANNEL_CTRL_OFFSETS.items():
-                base = offset + ctrl_off
-                ctrl = ControlSettings(
-                    assign=data[base], behaviour=data[base+1], cmd=data[base+2],
-                    min_val=data[base+3], max_val=data[base+4],
-                )
-                object.__setattr__(grp, name, ctrl) if hasattr(grp, '__dict__') else setattr(grp, name, ctrl)
-                setattr(grp, name, ctrl)
+                setattr(grp, name, _read_control(data, offset + ctrl_off))
             s.groups.append(grp)
-        t = TransportGroup(channel=data[TRANSPORT_OFFSET])
+        t = TransportGroup(channel=min(data[TRANSPORT_OFFSET], 16))
         for name, ctrl_off in TRANSPORT_CTRL_OFFSETS.items():
-            base = TRANSPORT_OFFSET + ctrl_off
-            ctrl = ControlSettings(
-                assign=data[base], behaviour=data[base+1], cmd=data[base+2],
-                min_val=data[base+3], max_val=data[base+4],
-            )
-            setattr(t, name, ctrl)
+            setattr(t, name, _read_control(data, TRANSPORT_OFFSET + ctrl_off))
         s.transport = t
         if len(data) >= CUSTOM_DAW_OFFSET + CUSTOM_DAW_LEN:
             s.custom_daw = list(data[CUSTOM_DAW_OFFSET:CUSTOM_DAW_OFFSET + CUSTOM_DAW_LEN])

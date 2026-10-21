@@ -12,8 +12,10 @@ All device I/O runs in a worker thread. The window reads from `events`:
   ("writing", None)
   ("written", scene)
   ("write_failed", error)
+  ("learned", (kind, number))     kind is "cc" or "note"
+
+Short MIDI messages from the device arrive on `incoming` as (timestamp, status, data1, data2).
 """
-import collections
 import queue
 import threading
 import time
@@ -35,8 +37,8 @@ class KontrolLink:
         self.events = queue.Queue()
         self.port = None
         self.on_device = None   # scene the device currently has (last read or written)
-        self.monitor_msgs = collections.deque(maxlen=200)  # (timestamp, status, d1, d2)
-        self._learn_cb = None
+        self.incoming = queue.SimpleQueue()
+        self._learning = False
         self._channel = 0
         self._lock = threading.Lock()
         self._pending = None
@@ -124,21 +126,25 @@ class KontrolLink:
             except Exception:
                 pass
 
-    def start_learn(self, callback):
-        """Next CC or Note On from the device will call callback(kind, number)."""
-        self._learn_cb = callback
+    def start_learn(self):
+        """The next CC or Note On from the device is reported once as a "learned" event."""
+        self._learning = True
 
     def cancel_learn(self):
-        self._learn_cb = None
+        self._learning = False
 
     def _on_short_all(self, status, data1, data2):
-        self.monitor_msgs.append((time.monotonic(), status, data1, data2))
-        msg_type = status & 0xF0
-        if msg_type in (0xB0, 0x90):
-            cb = self._learn_cb
-            if cb is not None:
-                self._learn_cb = None
-                cb("cc" if msg_type == 0xB0 else "note", data1)
+        """Runs on the MIDI driver thread: only touches thread-safe queues."""
+        self.incoming.put((time.monotonic(), status, data1, data2))
+        if not self._learning:
+            return
+        kind = status & 0xF0
+        if kind == 0xB0:
+            self._learning = False
+            self.events.put(("learned", ("cc", data1)))
+        elif kind == 0x90 and data2 > 0:
+            self._learning = False
+            self.events.put(("learned", ("note", data1)))
 
     def _try_link(self):
         if not self._present():
