@@ -214,6 +214,7 @@ class App(ctk.CTkFrame):
         self._shown = {}
         self._ctrl_rows = {}    # key -> ControlRow
         self._scene_dirty = True
+        self._full_refresh = True   # True = update all sections, False = current only
 
         self.master.title("nanoKONTROL 2 Editor")
         self.master.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -313,6 +314,12 @@ class App(ctk.CTkFrame):
         self._pages = {}
         for sec in SECTIONS:
             self._pages[sec] = self._build_page(sec)
+
+        # Stack all pages via place() — switching is just lift(), zero layout recalc
+        self._placeholder.place(x=0, y=0, relwidth=1, relheight=1)
+        for page in self._pages.values():
+            page.place(x=0, y=0, relwidth=1, relheight=1)
+        self._placeholder.lift()
 
         # ── footer ────────────────────────────────────────────────────────────
         footer = ctk.CTkFrame(self, fg_color="transparent")
@@ -491,6 +498,7 @@ class App(ctk.CTkFrame):
             self.scene = new_scene
             self._failed = False
             self._scene_dirty = True
+            self._full_refresh = False  # only current section changed
             self.link.push(new_scene)
         self.refresh()
 
@@ -513,7 +521,6 @@ class App(ctk.CTkFrame):
 
     def _show_section(self, section):
         self._section = section
-        self._scene_dirty = True
         self.refresh()
 
     def _open_file(self):
@@ -527,6 +534,8 @@ class App(ctk.CTkFrame):
             self._show_msg(f"Could not open: {e}", ERROR)
             return
         self.scene = loaded
+        self._scene_dirty = True
+        self._full_refresh = True
         self.link.push(self.scene)
         self._show_msg(f"Opened {os.path.basename(path)}", OK)
         self.refresh()
@@ -551,6 +560,8 @@ class App(ctk.CTkFrame):
         if not self.ask_yes_no("Undo all changes", "Restore the scene to how it was when the device connected?"):
             return
         self.scene = self.original.copy()
+        self._scene_dirty = True
+        self._full_refresh = True
         self.link.push(self.scene)
         self._show_msg("Restored to original scene")
         self.refresh()
@@ -577,7 +588,8 @@ class App(ctk.CTkFrame):
                     self.original = payload
                 if self.scene is None or not self.link.has_pending:
                     self.scene = payload
-                self._scene_dirty = True
+                    self._scene_dirty = True
+                    self._full_refresh = True
                 self._show_msg("Scene read.", OK)
             elif kind == "writing":
                 self._writing = True
@@ -617,62 +629,68 @@ class App(ctk.CTkFrame):
 
         if self.scene is not None and self._scene_dirty:
             self._scene_dirty = False
-            self._refresh_scene()
+            full, self._full_refresh = self._full_refresh, False
+            self._refresh_scene(full=full)
 
         self._draw_status()
         self._draw_led_btn()
 
-    def _refresh_scene(self):
+    def _refresh_global(self, s):
+        ch_label = str(s.global_channel + 1)
+        w = getattr(self, "_global_ch_menu", None)
+        if w and w.get() != ch_label:
+            w.set(ch_label)
+        w = getattr(self, "_ctrl_mode_menu", None)
+        cm_label = protocol.CONTROL_MODES[s.control_mode]
+        if w and w.get() != cm_label:
+            w.set(cm_label)
+        w = getattr(self, "_led_seg", None)
+        led_label = protocol.LED_MODES[s.led_mode]
+        if w and w.get() != led_label:
+            w.set(led_label)
+
+    def _refresh_channel(self, s, g):
+        grp = s.groups[g]
+        ch_widget = self._ctrl_rows.get(f"ch{g+1}_channel")
+        if ch_widget:
+            ch_val = "Global" if grp.channel >= 16 else str(grp.channel + 1)
+            if ch_widget.get() != ch_val:
+                ch_widget.set(ch_val)
+        for ctrl_name in protocol.CHANNEL_CONTROLS:
+            row = self._ctrl_rows.get(f"ch{g+1}_{ctrl_name}")
+            if row:
+                row.show(grp.get_ctrl(ctrl_name))
+
+    def _refresh_transport(self, s):
+        t = s.transport
+        t_ch = self._ctrl_rows.get("transport_channel")
+        if t_ch:
+            t_ch_val = "Global" if t.channel >= 16 else str(t.channel + 1)
+            if t_ch.get() != t_ch_val:
+                t_ch.set(t_ch_val)
+        for ctrl_name in protocol.TRANSPORT_CONTROLS:
+            row = self._ctrl_rows.get(f"transport_{ctrl_name}")
+            if row:
+                row.show(t.get_ctrl(ctrl_name))
+
+    def _refresh_scene(self, full=False):
         s = self.scene
-        sec = self._section
-
-        if sec == "global":
-            ch_label = str(s.global_channel + 1)
-            g_ch_widget = getattr(self, "_global_ch_menu", None)
-            if g_ch_widget and g_ch_widget.get() != ch_label:
-                g_ch_widget.set(ch_label)
-            cm_widget = getattr(self, "_ctrl_mode_menu", None)
-            cm_label = protocol.CONTROL_MODES[s.control_mode]
-            if cm_widget and cm_widget.get() != cm_label:
-                cm_widget.set(cm_label)
-            led_widget = getattr(self, "_led_seg", None)
-            led_label = protocol.LED_MODES[s.led_mode]
-            if led_widget and led_widget.get() != led_label:
-                led_widget.set(led_label)
-
-        elif sec.startswith("ch"):
-            g = int(sec[2:]) - 1
-            grp = s.groups[g]
-            ch_widget = self._ctrl_rows.get(f"ch{g+1}_channel")
-            if ch_widget:
-                ch_val = "Global" if grp.channel >= 16 else str(grp.channel + 1)
-                if ch_widget.get() != ch_val:
-                    ch_widget.set(ch_val)
-            for ctrl_name in protocol.CHANNEL_CONTROLS:
-                row = self._ctrl_rows.get(f"ch{g+1}_{ctrl_name}")
-                if row:
-                    row.show(grp.get_ctrl(ctrl_name))
-
-        elif sec == "transport":
-            t = s.transport
-            t_ch_widget = self._ctrl_rows.get("transport_channel")
-            if t_ch_widget:
-                t_ch_val = "Global" if t.channel >= 16 else str(t.channel + 1)
-                if t_ch_widget.get() != t_ch_val:
-                    t_ch_widget.set(t_ch_val)
-            for ctrl_name in protocol.TRANSPORT_CONTROLS:
-                row = self._ctrl_rows.get(f"transport_{ctrl_name}")
-                if row:
-                    row.show(t.get_ctrl(ctrl_name))
+        if full:
+            self._refresh_global(s)
+            for g in range(protocol.NUM_GROUPS):
+                self._refresh_channel(s, g)
+            self._refresh_transport(s)
+        else:
+            sec = self._section
+            if sec == "global":
+                self._refresh_global(s)
+            elif sec.startswith("ch"):
+                self._refresh_channel(s, int(sec[2:]) - 1)
+            elif sec == "transport":
+                self._refresh_transport(s)
 
     def _place_page(self, page):
-        for child in self._content.winfo_children():
-            child.pack_forget()
-            child.place_forget()
-        if page is self._placeholder:
-            page.place(relx=0.5, rely=0.5, anchor="center")
-        else:
-            page.pack(fill="both", expand=True)
+        page.lift()
 
     def _status(self):
         if not self.link.linked:
