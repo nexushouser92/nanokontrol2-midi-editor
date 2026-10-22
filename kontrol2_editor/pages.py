@@ -487,7 +487,7 @@ class SequencerPage(Page):
                    for s in range(sequencer.STEPS)]
             self.cells.append(row)
         self.text(28, 572, tr("On the device: Mute = steps 1-8  ·  Rec = steps 9-16  ·  Solo = solo of each track  ·  "
-                              "Track ◀ ▶ = track  ·  Knobs = note  ·  Faders → DAW"), 11, theme.MUTED)
+                              "Track ◀ ▶ = track  ·  Knobs or Marker ◀ ▶ = note  ·  Faders → DAW"), 11, theme.MUTED)
         self._shown = None
 
     def _step_x(self, step):

@@ -4,7 +4,8 @@
   Mute 1-8 / Rec 1-8   steps 1-8 / 9-16 of the selected track (LEDs show the pattern and the playhead)
   Solo 1-8             solo of tracks 1-8
   Track < >            select the previous / next track
-  Knob 1-8             note of tracks 1-8
+  Knob 1-8             note of tracks 1-8, over KNOB_SPAN notes from KNOB_LOW (3 octaves: easy to aim)
+  Marker < >           note of the selected track one semitone down / up, previewed on its channel
   Fader 1-8            passed through to the DAW unchanged
   Play / Stop / Rewind passed through to the DAW (map them there); Rewind also goes back to step 1
 
@@ -30,6 +31,8 @@ TICKS_PER_STEP = 6
 GATE_TICKS = 3
 VELOCITY = 100
 DEFAULT_NOTE = 60
+KNOB_LOW, KNOB_SPAN = 36, 36     # a full knob turn covers C2-B4
+PREVIEW_SECONDS = 0.3
 
 CLOCK, START, CONTINUE, STOP, SONG_POSITION = 0xF8, 0xFA, 0xFB, 0xFC, 0xF2
 
@@ -82,6 +85,7 @@ class Sequencer:
         self.position = -1          # step being played, -1 when stopped
         self._ticks = -1
         self._sounding = []         # (channel, note) waiting for their note-off
+        self._previewing = []       # (channel, note) of note previews, released by end_preview()
         self.version = 0            # bumped on every change the window should redraw
         self.set_scene(scene)
 
@@ -157,6 +161,19 @@ class Sequencer:
             self.version += 1
         return []
 
+    def nudge_note(self, track, semitones):
+        """Move a track's note by `semitones` and play it briefly so it can be heard."""
+        self.set_note(track, min(127, max(0, self.notes[track] + semitones)))
+        actions = self.end_preview()
+        note = self.notes[track]
+        self._previewing.append((track, note))
+        return actions + [("out", 0x90 | track, note, VELOCITY), ("preview",)]
+
+    def end_preview(self):
+        actions = [("out", 0x80 | channel, note, 0) for channel, note in self._previewing]
+        self._previewing.clear()
+        return actions
+
     # ------------------------------------------------------------------ device input
 
     def device_message(self, status, data1, data2):
@@ -168,7 +185,7 @@ class Sequencer:
         if name == "slider":
             return [("out", status, data1, data2)]
         if name == "knob":
-            return self.set_note(key, data2)
+            return self.set_note(key, KNOB_LOW + data2 * KNOB_SPAN // 128)
         pressed = data2 == self._max.get(target, 127) and data2 > 0
         if key == "transport":
             if name in ("play", "stop", "rew"):
@@ -180,6 +197,8 @@ class Sequencer:
                 return self.select(self.selected - 1)
             if pressed and name == "next_track":
                 return self.select(self.selected + 1)
+            if pressed and name in ("prev_marker", "next_marker"):
+                return self.nudge_note(self.selected, -1 if name == "prev_marker" else 1)
             return []
         if not pressed:
             return []
@@ -261,7 +280,7 @@ class Sequencer:
         return actions
 
     def all_notes_off(self):
-        return self._release()
+        return self._release() + self.end_preview()
 
 
 # --------------------------------------------------------------------------- ports and thread
@@ -288,6 +307,7 @@ class SequencerRunner:
         self._out = self._in = None
         self._thread = None
         self._lock = threading.Lock()
+        self._preview_timer = None
         self.last_clock = None
         self.bpm = None
         self._clock_times = []
@@ -318,6 +338,8 @@ class SequencerRunner:
     def stop(self):
         if self._thread is None:
             return
+        if self._preview_timer is not None:
+            self._preview_timer.cancel()
         self._queue.put(("quit",))
         self._thread.join(2.0)
         self._thread = None
@@ -370,7 +392,13 @@ class SequencerRunner:
 
     def _apply(self, actions):
         for action in actions:
-            if action[0] == "out":
+            if action[0] == "preview":
+                if self._preview_timer is not None:
+                    self._preview_timer.cancel()
+                self._preview_timer = threading.Timer(PREVIEW_SECONDS, self.post, (self.seq.end_preview,))
+                self._preview_timer.daemon = True
+                self._preview_timer.start()
+            elif action[0] == "out":
                 if self._out is not None:
                     try:
                         self._out.send_short(*action[1:])

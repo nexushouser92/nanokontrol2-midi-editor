@@ -63,10 +63,27 @@ class SequencerTest(unittest.TestCase):
 
     def test_knobs_set_the_note_and_faders_go_to_the_daw(self):
         knob = self.scene.groups[2].knob.cmd
-        self.assertEqual(self.seq.device_message(0xB0, knob, 64), [])
-        self.assertEqual(self.seq.notes[2], 64)
+        self.assertEqual(self.seq.device_message(0xB0, knob, 0), [])
+        self.assertEqual(self.seq.notes[2], sequencer.KNOB_LOW)
+        self.seq.device_message(0xB0, knob, 127)
+        self.assertEqual(self.seq.notes[2], sequencer.KNOB_LOW + sequencer.KNOB_SPAN - 1)
+        self.seq.device_message(0xB0, knob, 64)
+        self.assertEqual(self.seq.notes[2], sequencer.KNOB_LOW + sequencer.KNOB_SPAN // 2)
         fader = self.scene.groups[5].slider.cmd
         self.assertEqual(outs(self.seq.device_message(0xB0, fader, 77)), [(0xB0, fader, 77)])
+
+    def test_marker_buttons_nudge_and_preview_the_selected_tracks_note(self):
+        self.press("transport", "next_track")
+        actions = self.press("transport", "next_marker")
+        self.assertEqual(self.seq.notes[1], 61)
+        self.assertEqual(outs(actions), [(0x91, 61, sequencer.VELOCITY)])
+        self.assertIn(("preview",), actions)
+        actions = self.press("transport", "prev_marker")
+        self.assertEqual(outs(actions), [(0x81, 61, 0), (0x91, 60, sequencer.VELOCITY)])
+        self.assertEqual(outs(self.seq.end_preview()), [(0x81, 60, 0)])
+        self.seq.notes[1] = 127
+        self.press("transport", "next_marker")
+        self.assertEqual(self.seq.notes[1], 127)
 
     def test_transport_buttons_also_go_to_the_daw(self):
         play = self.scene.transport.play.cmd
