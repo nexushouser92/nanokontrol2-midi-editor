@@ -29,3 +29,6 @@ Run the tests with `python -m unittest discover -s tests`.
 pip install pyinstaller
 pyinstaller --noconfirm --onefile --windowed --name MIDI-Editor-nanoKONTROL2 --icon assets/icon.ico --add-data "assets;assets" main.py
 ```
+
+## License
+MIT, see [LICENSE](LICENSE).
