@@ -14,9 +14,11 @@ def render(kind, w, h, r, color, bg=None):
     """Image of `kind` ("round", "oval", "chevron" or a corner: "tl", "tr", "bl", "br").
 
     With `bg` the shape is flattened onto that colour: an opaque image paints much faster
-    than a translucent one, which matters for large shapes.
+    than a translucent one, which matters for large shapes. A colour written "fill|border"
+    gives a "round" shape a 1 px border (like a macOS push button).
     """
     s = SUPERSAMPLE
+    color, _, border = color.partition("|")
     rgb = ImageDraw.ImageColor.getrgb(color)[:3]
     if kind in _QUADRANT_OFFSETS:
         w = h = r
@@ -24,7 +26,11 @@ def render(kind, w, h, r, color, bg=None):
     image = Image.new("RGBA", (w * s, h * s), rgb + (0,))
     draw = ImageDraw.Draw(image)
     box = (0, 0, w * s - 1, h * s - 1)
-    if kind == "round":
+    if kind == "round" and border:
+        draw.rounded_rectangle(box, radius=r * s, fill=border)
+        inner = (s, s, box[2] - s, box[3] - s)
+        draw.rounded_rectangle(inner, radius=max(0, r - 1) * s, fill=color)
+    elif kind == "round":
         draw.rounded_rectangle(box, radius=r * s, fill=color)
     elif kind == "oval":
         draw.ellipse(box, fill=color)

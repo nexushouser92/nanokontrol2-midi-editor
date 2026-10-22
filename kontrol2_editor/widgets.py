@@ -278,16 +278,16 @@ STYLES = {
     "accent": (theme.ACCENT, theme.ACCENT_HI, theme.ACCENT_LO, theme.ON_ACCENT),
     "ok": (theme.OK_DARK, theme.OK_HI, theme.OK_LO, theme.ON_ACCENT),
     "danger": (theme.ERROR_DARK, theme.ERROR_HOVER, theme.ERROR_PRESS, theme.ERROR_INK),
-    "nav": (theme.PANEL, theme.FIELD_HI, theme.FIELD_HOVER, theme.GLYPH),
+    "nav": (theme.PANEL, theme.ROW, theme.SEG_TRACK, theme.TEXT),
     "nav_on": (theme.ACCENT_DARK, theme.ACCENT_DARK, theme.ACCENT_DARK, theme.ON_ACCENT),
     "cell": (theme.FIELD_HI, theme.FIELD_HOVER, theme.PRESS, theme.TEXT),
     "cell_on": (theme.ACCENT_DARK, theme.ACCENT_DARK, theme.ACCENT_DARK, theme.ON_ACCENT),
     "led": (theme.LED, theme.LED_HI, theme.LED, theme.ON_ACCENT),
     "step_on": (theme.ACCENT_SOFT, theme.ACCENT_SOFT_HI, theme.ACCENT_SOFT_HI, theme.ACCENT_LO),
     "rail": (theme.RAIL, theme.RAIL_HOVER, theme.RAIL_PRESS, theme.RAIL_TEXT),
-    "rail_on": (theme.RAIL_SELECTED, theme.RAIL_SELECTED, theme.RAIL_SELECTED, theme.ACCENT),
-    "rail_cell_on": (theme.ACCENT, theme.ACCENT, theme.ACCENT, theme.ON_ACCENT),
-    "rail_button": (theme.RAIL_FIELD, theme.RAIL_HOVER, theme.RAIL_PRESS, theme.RAIL_TEXT),
+    "rail_on": (theme.RAIL_SELECTED, theme.RAIL_SELECTED, theme.RAIL_SELECTED, theme.ON_ACCENT),
+    "rail_cell_on": (theme.RAIL_SELECTED, theme.RAIL_SELECTED, theme.RAIL_SELECTED, theme.ON_ACCENT),
+    "rail_button": (theme.RAIL_FIELD, theme.RAIL_FIELD_HOVER, theme.RAIL_FIELD_PRESS, theme.RAIL_TEXT),
     "rail_danger": (theme.RAIL_DANGER, theme.RAIL_DANGER_HI, theme.RAIL_DANGER_HI, theme.RAIL_DANGER_INK),
     "display": (theme.DISPLAY, theme.DISPLAY_HI, theme.DISPLAY, theme.DISPLAY_INK),
     "display_ok": (theme.DISPLAY, theme.DISPLAY_HI, theme.DISPLAY, theme.DISPLAY_OK),
@@ -406,7 +406,7 @@ class Dropdown(Widget):
             return
         self._painted = state
         if self.dark:
-            idle, hover, press, text, off, off_ink = (theme.RAIL_FIELD, theme.RAIL_HOVER, theme.RAIL_PRESS,
+            idle, hover, press, text, off, off_ink = (theme.RAIL_FIELD, theme.RAIL_FIELD_HOVER, theme.RAIL_FIELD_PRESS,
                                                       theme.RAIL_TEXT, theme.RAIL, theme.RAIL_DIM)
         else:
             idle, hover, press, text, off, off_ink = (theme.FIELD_HI, theme.FIELD_HOVER, theme.PRESS,
@@ -432,8 +432,8 @@ class Segmented(Widget):
         self._painted = None
         n = len(self.values)
         self._cell = w / n
-        cv.rrect(x, y, w, h, 7, fill=theme.FIELD, bg=cv.backdrop)
-        self._thumb = cv.rrect(x + 2, y + 2, self._cell - 4, h - 4, 5, fill=theme.ACCENT)
+        cv.rrect(x, y, w, h, 7, fill=theme.SEG_TRACK, bg=cv.backdrop)
+        self._thumb = cv.rrect(x + 2, y + 2, self._cell - 4, h - 4, 5, fill=theme.SEG_ON)
         cv.itemconfigure(self._thumb, state="hidden")
         self._labels = [cv.text(x + self._cell * (i + 0.5), y + h / 2, v, size, anchor="center")
                         for i, v in enumerate(self.values)]
@@ -466,12 +466,12 @@ class Segmented(Widget):
             self.cv.reshape(self._thumb, self.x + 2 + self._cell * self.index, self.y + 2,
                             self._cell - 4, self.h - 4, 5)
             self.cv.itemconfigure(self._thumb, state="normal")
-            self.cv.recolor(self._thumb, theme.ACCENT if self.enabled else theme.FIELD_HI)
+            self.cv.recolor(self._thumb, theme.SEG_ON if self.enabled else theme.SEG_TRACK)
         for i, label in enumerate(self._labels):
             if not self.enabled:
                 ink = theme.DIM
             else:
-                ink = theme.ON_ACCENT if i == self.index else theme.MUTED
+                ink = theme.TEXT if i == self.index else theme.MUTED
             self.cv.itemconfigure(label, fill=ink)
 
 
@@ -625,12 +625,12 @@ class RangeBar(Widget):
         self._span = (self.x2 - self.x1) - 2 * u(self.PAD)
         t = max(2, u(3))
         self._half = t
-        cv.rrect(x + self.PAD - 3, y + h / 2 - 3, w - 2 * self.PAD + 6, 6, 3, fill=theme.FIELD)
+        cv.rrect(x + self.PAD - 3, y + h / 2 - 3, w - 2 * self.PAD + 6, 6, 3, fill=theme.SEG_TRACK)
         self._fill = cv.create_rectangle(0, 0, 0, 0, fill=theme.ACCENT, outline="")
         self._seen = cv.create_line(0, 0, 0, 0, fill=theme.MUTED, width=max(2, u(2)), state="hidden")
         self._marker = cv.create_line(0, 0, 0, 0, fill=theme.OK, width=max(2, u(2)), state="hidden")
-        self._h_lo = cv.oval(x, y, self.HANDLE, fill=theme.ACCENT_HI)
-        self._h_hi = cv.oval(x, y, self.HANDLE, fill=theme.TEXT)
+        self._h_lo = cv.oval(x, y, self.HANDLE, fill=theme.KNOB_LO)
+        self._h_hi = cv.oval(x, y, self.HANDLE, fill=theme.KNOB_HI)
 
     # --- value <-> pixel ---
 
@@ -685,8 +685,8 @@ class RangeBar(Widget):
         enabled, inverted = state
         cv = self.cv
         cv.itemconfigure(self._fill, fill=theme.DIM if not enabled else theme.WARN if inverted else theme.ACCENT)
-        cv.recolor(self._h_lo, theme.DIM if not enabled else theme.ACCENT_HI)
-        cv.recolor(self._h_hi, theme.MUTED if not enabled else theme.TEXT)
+        cv.recolor(self._h_lo, theme.DIM if not enabled else theme.KNOB_LO)
+        cv.recolor(self._h_hi, theme.MUTED if not enabled else theme.KNOB_HI)
 
     # --- mouse ---
 

@@ -179,8 +179,9 @@ class App:
 
     def _build_header(self):
         width = theme.WINDOW_W
-        header = Surface(self.root, width, theme.HEADER_H)
+        header = Surface(self.root, width, theme.HEADER_H, bg=theme.TOOLBAR)
         header.place(x=0, y=0)
+        header.hline(0, theme.HEADER_H - 1, width)
         try:
             logo = Image.open(icon_path("icon.png")).resize((u(40), u(40)), Image.LANCZOS)
             self._logo = ImageTk.PhotoImage(logo, master=self.root)
@@ -190,11 +191,11 @@ class App:
         header.text(64, 23, APP_NAME, 19, weight="bold")
         header.text(64, 44, tr("Unofficial scene editor for the KORG nanoKONTROL 2"), 11, theme.MUTED)
         self._status = Button(header, width - 16 - 212, 14, 212, 32, "", self._on_status_click,
-                              size=12, weight="bold", radius=16)
+                              size=12, weight="bold", radius=7)
         self._led_chip = Button(header, width - 16 - 212 - 8 - 144, 14, 144, 32, tr("Ext LEDs: {state}", state="-"),
-                                self.toggle_led_mode, size=12, weight="bold", radius=16)
+                                self.toggle_led_mode, size=12, weight="bold", radius=7)
         self._send = Button(header, width - 16 - 212 - 8 - 144 - 8 - 200, 14, 200, 32, tr("Send to nanoKONTROL"),
-                            self.send_to_device, style="accent", size=12, weight="bold", radius=16)
+                            self.send_to_device, style="accent", size=12, weight="bold", radius=7)
 
     def _build_sidebar(self):
         """The black navigation rail, flush with the left edge of the window."""
@@ -208,7 +209,7 @@ class App:
             cell = key.startswith("ch")
             self._nav[key] = Button(nav, x0 + x, y, w, h, label, lambda: self.show_section(key),
                                     style="rail_button" if cell else "rail", align=align,
-                                    size=14 if cell else 13, weight="bold", radius=10)
+                                    size=14 if cell else 13, weight="bold" if cell else "normal", radius=7)
 
         def caption(y, text):
             nav.text(x0 + 4, y, text, 10, theme.RAIL_MUTED, weight="bold")
@@ -225,7 +226,7 @@ class App:
 
         nav.hline(x0 + 4, 408, 168, fill=theme.RAIL_EDGE)
         caption(428, tr("SCENE"))
-        button = dict(style="rail_button", size=12, radius=10)
+        button = dict(style="rail_button", size=12, radius=7)
         self._open = Button(nav, x0, 444, 84, 32, tr("Open"), self.open_file, **button)
         self._save = Button(nav, x0 + 92, 444, 84, 32, tr("Save"), self.save_file, **button)
         self._templates = Dropdown(nav, x0, 484, 176, 32, options(edit.TEMPLATES), self.apply_template,
@@ -233,12 +234,13 @@ class App:
         self._export = Button(nav, x0, 524, 84, 32, tr("Export CC"), self.export_cheatsheet, **button)
         self._undo = Button(nav, x0 + 92, 524, 84, 32, tr("Undo all"), self.undo_all, **button)
         self._factory = Button(nav, x0, 564, 176, 32, tr("Factory reset"), self.factory_reset,
-                               style="rail_danger", size=12, radius=10)
+                               style="rail_danger", size=12, radius=7)
 
     def _build_footer(self):
         width = theme.WINDOW_W
         footer = Surface(self.root, width, theme.FOOTER_H)
         footer.place(x=0, y=u(theme.WINDOW_H - theme.FOOTER_H))
+        footer.hline(0, 0, width)
         self._footer = footer
         self._message = footer.text(theme.MARGIN + 4, 16, "", 12, theme.MUTED)
         self._conflict_note = footer.text(width - theme.MARGIN - 300, 16, "", 12, theme.WARN, anchor="e")

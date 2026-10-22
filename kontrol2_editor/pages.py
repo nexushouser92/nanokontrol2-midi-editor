@@ -30,7 +30,7 @@ class Page(Surface):
         super().__init__(app.root, PAGE_W, PAGE_H)
         self.app = app
         self.version = -1
-        self.panel(0, 0, PAGE_W, PAGE_H, 16, theme.PANEL)
+        self.panel(0, 0, PAGE_W, PAGE_H, 10, theme.PANEL)
         self.backdrop = theme.PANEL
 
     def heading(self, title, subtitle=""):
