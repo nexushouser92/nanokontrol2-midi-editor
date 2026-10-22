@@ -20,6 +20,8 @@ import tkinter as tk
 import webbrowser
 from tkinter import filedialog, messagebox
 
+from PIL import Image, ImageTk
+
 from . import APP_NAME, __version__, edit, presets, protocol, sequencer, theme
 from .i18n import options, tr
 from .link import KontrolLink
@@ -62,9 +64,9 @@ def page_key(section):
     return "channels" if section.startswith("ch") else section
 
 
-def icon_path():
+def icon_path(name="icon.ico"):
     base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    return os.path.join(base, "assets", "icon.ico")
+    return os.path.join(base, "assets", name)
 
 
 def create_root():
@@ -178,10 +180,12 @@ class App:
         width = theme.WINDOW_W
         header = Surface(self.root, width, theme.HEADER_H)
         header.place(x=0, y=0)
-        header.rrect(16, 13, 36, 36, 10, fill=theme.ACCENT)
-        for x, knob in ((25, 26), (34, 36), (43, 30)):
-            header.line(x, 21, x, 41, fill="#ffffff", width=1.6)
-            header.oval(x, knob, 3.2, fill="#ffffff")
+        try:
+            logo = Image.open(icon_path("icon.png")).resize((u(40), u(40)), Image.LANCZOS)
+            self._logo = ImageTk.PhotoImage(logo, master=self.root)
+            header.create_image(u(14), u(11), image=self._logo, anchor="nw")
+        except OSError:
+            header.rrect(16, 13, 36, 36, 10, fill=theme.ACCENT)
         header.text(64, 23, APP_NAME, 19, weight="bold")
         header.text(64, 44, tr("Unofficial scene editor for the KORG nanoKONTROL 2"), 11, theme.MUTED)
         self._status = Button(header, width - 16 - 212, 14, 212, 32, "", self._on_status_click,
