@@ -79,9 +79,11 @@ CUSTOM_DAW_LABELS = ("Assign 1", "Assign 2", "Assign 3", "Assign 4", "Assign 5")
 
 # LED control (External LED mode): the device lights a button's LED when it receives the same
 # message that button sends - its CC or Note, on its group's channel (or the global channel).
+# Track and marker buttons have no LED.
+LED_TRANSPORT = ("cycle", "rew", "ff", "stop", "play", "rec")
 LED_BUTTONS = (
     *(f"{kind}_{i + 1}" for kind in ("solo", "mute", "prime") for i in range(NUM_GROUPS)),
-    *TRANSPORT_CONTROLS,
+    *LED_TRANSPORT,
 )
 
 

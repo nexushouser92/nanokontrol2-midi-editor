@@ -380,12 +380,12 @@ class LedPage(Page):
                                            lambda key=key: app.toggle_led(key), size=12)
 
         self.caption(28, 394, "TRANSPORT BUTTONS")
-        for i, name in enumerate(protocol.TRANSPORT_CONTROLS):
-            x, y = 28 + (i % 6) * 96, 416 + (i // 6) * 50
+        for i, name in enumerate(protocol.LED_TRANSPORT):
+            x, y = 28 + i * 96, 416
             self.buttons[name] = Button(self, x, y, 88, 38, protocol.TRANSPORT_LABELS[name],
                                         lambda name=name: app.toggle_led(name), size=11)
-        Button(self, 28, 540, 100, 38, "All off", lambda: app.set_all_leds(False), size=12)
-        Button(self, 136, 540, 100, 38, "All on", lambda: app.set_all_leds(True), size=12)
+        Button(self, 28, 476, 100, 38, "All off", lambda: app.set_all_leds(False), size=12)
+        Button(self, 136, 476, 100, 38, "All on", lambda: app.set_all_leds(True), size=12)
 
     def set_led(self, key, on):
         button = self.buttons[key]
