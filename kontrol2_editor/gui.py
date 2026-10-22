@@ -72,6 +72,7 @@ def icon_path(name="icon.ico"):
 def create_root():
     """A hidden, dark, correctly scaled and positioned main window."""
     theme.enable_dpi_awareness()
+    theme.load_fonts(icon_path("fonts"))
     root = tk.Tk()
     root.withdraw()
     root.configure(bg=theme.BG)

@@ -5,6 +5,7 @@ All layout numbers in the code are "design units" (a 1160x720 window at 96 dpi).
 DPI and shrinks the whole interface when the screen is too small to fit it.
 """
 import ctypes
+import os
 import sys
 from tkinter import font as tkfont
 
@@ -73,7 +74,8 @@ RAIL_DANGER_HI = "#f8d3cf"
 RAIL_DANGER_INK = "#c94f49"
 DARK_UI = False           # light window frame
 
-UI_FONT_CHOICES = ("Segoe UI", "Bahnschrift", "Trebuchet MS", "Verdana", "Tahoma")
+UI_FONT_CHOICES = ("Lato", "Segoe UI", "Bahnschrift", "Trebuchet MS", "Verdana", "Tahoma")
+FR_PRIVATE = 0x10
 MONO_FONT_CHOICES = ("Consolas", "Lucida Console", "Courier New")
 
 ZOOM = 1.1   # default size relative to the design units, when the screen has room
@@ -107,6 +109,19 @@ def enable_dpi_awareness():
             ctypes.windll.user32.SetProcessDPIAware()
         except (AttributeError, OSError):
             pass
+
+
+def load_fonts(folder):
+    """Make the .ttf files in `folder` (Lato, shipped in assets/fonts) usable by this process only,
+    without installing them in Windows. Must run before Tk lists the font families."""
+    if sys.platform != "win32" or not os.path.isdir(folder):
+        return
+    for name in sorted(os.listdir(folder)):
+        if name.lower().endswith(".ttf"):
+            try:
+                ctypes.windll.gdi32.AddFontResourceExW(os.path.join(folder, name), FR_PRIVATE, 0)
+            except (AttributeError, OSError):
+                pass
 
 
 def setup(root):
