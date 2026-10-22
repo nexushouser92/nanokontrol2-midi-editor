@@ -11,6 +11,7 @@ It talks to the controller over USB MIDI (SysEx) and needs no driver beyond the 
 - MIDI Learn, live activity indicators, CC conflict warnings and a MIDI monitor.
 - LED test for External LED mode, custom DAW assign slots, templates, copy strip to strips.
 - Open / save presets (`.json`, `.syx`), export a CSV overview, undo all, factory reset.
+- English and Spanish, following your Windows language.
 - Fast, anti-aliased interface drawn on plain Tk canvases.
 
 ## Download

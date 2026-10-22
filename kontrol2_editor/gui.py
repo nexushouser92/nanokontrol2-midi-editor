@@ -20,6 +20,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 
 from . import APP_NAME, __version__, edit, presets, protocol, theme
+from .i18n import options, tr
 from .link import KontrolLink
 from .midi_win import MidiError
 from .pages import (CalibrationPage, ChannelPage, ControlPage, GlobalPage, LedPage,
@@ -42,6 +43,14 @@ PAGE_CLASSES = {
     "leds": LedPage,
     "monitor": MonitorPage,
 }
+
+
+def led_name(key):
+    """Display name of an LED button key such as "solo_3" or "play"."""
+    if key in protocol.TRANSPORT_LABELS:
+        return tr(protocol.TRANSPORT_LABELS[key])
+    kind, number = key.rsplit("_", 1)
+    return f"{tr(protocol.CHANNEL_CTRL_LABELS[kind])} {number}"
 
 
 def page_key(section):
@@ -150,11 +159,13 @@ class App:
             header.line(x, 21, x, 41, fill="#ffffff", width=1.6)
             header.oval(x, knob, 3.2, fill="#ffffff")
         header.text(64, 23, APP_NAME, 19, weight="bold")
-        header.text(64, 44, "Unofficial scene editor for the KORG nanoKONTROL 2", 11, theme.MUTED)
+        header.text(64, 44, tr("Unofficial scene editor for the KORG nanoKONTROL 2"), 11, theme.MUTED)
         self._status = Button(header, width - 16 - 212, 14, 212, 32, "", self._on_status_click,
                               size=12, weight="bold", radius=16)
-        self._led_chip = Button(header, width - 16 - 212 - 8 - 144, 14, 144, 32, "Ext LEDs: -",
+        self._led_chip = Button(header, width - 16 - 212 - 8 - 144, 14, 144, 32, tr("Ext LEDs: {state}", state="-"),
                                 self.toggle_led_mode, size=12, weight="bold", radius=16)
+        self._send = Button(header, width - 16 - 212 - 8 - 144 - 8 - 200, 14, 200, 32, tr("Send to nanoKONTROL"),
+                            self.send_to_device, style="accent", size=12, weight="bold", radius=16)
 
     def _build_sidebar(self):
         nav = Surface(self.root, theme.NAV_W, theme.PAGE_H)
@@ -169,24 +180,24 @@ class App:
                                     align=align, size=14 if key.startswith("ch") else 13,
                                     weight="bold" if key.startswith("ch") else "normal")
 
-        section("global", "Global", 12, 14, 176)
-        nav.text(16, 74, "CHANNELS", 10, theme.MUTED, weight="bold")
+        section("global", tr("Global"), 12, 14, 176)
+        nav.text(16, 74, tr("CHANNELS"), 10, theme.MUTED, weight="bold")
         for i in range(protocol.NUM_GROUPS):
             section(f"ch{i + 1}", str(i + 1), 12 + (i % 4) * 46, 92 + (i // 4) * 44, 38, 38, "center")
-        section("transport", "Transport", 12, 190, 176)
-        section("calibration", "Calibration", 12, 232, 176)
-        section("leds", "LED Test", 12, 274, 176)
-        section("monitor", "MIDI Monitor", 12, 316, 176)
+        section("transport", tr("Transport"), 12, 190, 176)
+        section("calibration", tr("Calibration"), 12, 232, 176)
+        section("leds", tr("LED Test"), 12, 274, 176)
+        section("monitor", tr("MIDI Monitor"), 12, 316, 176)
 
         nav.hline(16, 366, 168)
-        nav.text(16, 386, "SCENE", 10, theme.MUTED, weight="bold")
-        self._open = Button(nav, 12, 402, 84, 32, "Open", self.open_file, size=12)
-        self._save = Button(nav, 104, 402, 84, 32, "Save", self.save_file, size=12)
-        self._templates = Dropdown(nav, 12, 442, 176, 32, edit.TEMPLATES, self.apply_template,
-                                   caption="Templates", size=12)
-        self._export = Button(nav, 12, 482, 84, 32, "Export CC", self.export_cheatsheet, size=12)
-        self._undo = Button(nav, 104, 482, 84, 32, "Undo all", self.undo_all, size=12)
-        self._factory = Button(nav, 12, 522, 176, 32, "Factory reset", self.factory_reset,
+        nav.text(16, 386, tr("SCENE"), 10, theme.MUTED, weight="bold")
+        self._open = Button(nav, 12, 402, 84, 32, tr("Open"), self.open_file, size=12)
+        self._save = Button(nav, 104, 402, 84, 32, tr("Save"), self.save_file, size=12)
+        self._templates = Dropdown(nav, 12, 442, 176, 32, options(edit.TEMPLATES), self.apply_template,
+                                   caption=tr("Templates"), size=12)
+        self._export = Button(nav, 12, 482, 84, 32, tr("Export CC"), self.export_cheatsheet, size=12)
+        self._undo = Button(nav, 104, 482, 84, 32, tr("Undo all"), self.undo_all, size=12)
+        self._factory = Button(nav, 12, 522, 176, 32, tr("Factory reset"), self.factory_reset,
                                style="danger", size=12)
 
     def _build_footer(self):
@@ -196,7 +207,7 @@ class App:
         self._footer = footer
         self._message = footer.text(theme.MARGIN + 4, 16, "", 12, theme.MUTED)
         self._conflict_note = footer.text(width - theme.MARGIN - 300, 16, "", 12, theme.WARN, anchor="e")
-        footer.text(width - theme.MARGIN, 16, f"Unofficial  ·  not affiliated with KORG  ·  v{__version__}",
+        footer.text(width - theme.MARGIN, 16, tr("Unofficial  ·  not affiliated with KORG  ·  v{version}", version=__version__),
                     11, theme.DIM, anchor="e")
 
     # ------------------------------------------------------------------ navigation
@@ -244,7 +255,7 @@ class App:
         self._targets = None
         count = len(self.conflicts)
         self._footer.itemconfigure(
-            self._conflict_note, text=f"{count} controls share a CC / Note number" if count else "")
+            self._conflict_note, text=tr("{count} controls share a CC / Note number", count=count) if count else "")
         self._present()
         self._update_chrome()
 
@@ -293,46 +304,54 @@ class App:
         if self.scene is None:
             return
         if len(targets) > 1 and not self.ask_yes_no(
-                "Copy strip", f"Copy strip {source + 1} onto all other strips?\nTheir current settings are replaced."):
+                tr("Copy strip"),
+                tr("Copy strip {n} onto all other strips?\nTheir current settings are replaced.", n=source + 1)):
             return
         self._commit(edit.copy_group(self.scene, source, targets))
         names = ", ".join(str(t + 1) for t in targets)
-        self.say(f"Strip {source + 1} copied to {names}.", theme.OK)
+        self.say(tr("Strip {n} copied to {names}.", n=source + 1, names=names), theme.OK)
 
-    def apply_template(self, name):
+    def apply_template(self, label):
+        name = edit.TEMPLATES[options(edit.TEMPLATES).index(label)]
         if self.scene is None or not self.ask_yes_no(
-                "Apply template", f"Apply '{name}'?\nThis replaces the assignments of every control."):
+                tr("Apply template"), tr("Apply '{name}'?\nThis replaces the assignments of every control.", name=label)):
             return
         self._commit(edit.apply_template(self.scene, name))
-        self.say(f"Template applied: {name}.", theme.OK)
+        self.say(tr("Template applied: {name}.", name=label), theme.OK)
 
     def reset_ranges(self):
         if self.scene is None or not self.ask_yes_no(
-                "Reset ranges", "Set every fader and knob back to the full 0-127 range?"):
+                tr("Reset ranges"), tr("Set every fader and knob back to the full 0-127 range?")):
             return
         self.seen.clear()
-        self._commit(edit.reset_ranges(self.scene))
-        self.say("All fader and knob ranges reset to 0-127.", theme.OK)
-
-    def clear_measured(self):
-        self.seen.clear()
         self.live.clear()
+        self._commit(edit.reset_ranges(self.scene))
         if self._visible is not None:
             self._visible.activate()
+        self.say(tr("All fader and knob ranges reset to 0-127."), theme.OK)
+
+    def send_to_device(self):
+        """Send the whole scene now and save it on the device (edits are also sent as you make them)."""
+        if self.scene is None or not self.link.linked:
+            return
+        self._failed = False
+        self.link.push(self.scene)
+        self.link.flush()
+        self.say(tr("Sending the scene to the nanoKONTROL 2..."))
 
     def factory_reset(self):
         if self.scene is None or not self.ask_yes_no(
-                "Factory reset", "Reset ALL settings to factory defaults?\nEvery assignment and mode is replaced."):
+                tr("Factory reset"), tr("Reset ALL settings to factory defaults?\nEvery assignment and mode is replaced.")):
             return
         self._replace_scene(protocol.Scene(), push=True)
-        self.say("Factory defaults applied.", theme.OK)
+        self.say(tr("Factory defaults applied."), theme.OK)
 
     def undo_all(self):
         if self.original is None or self.scene is None:
             return
-        if self.ask_yes_no("Undo all changes", "Restore the scene as it was when the device connected?"):
+        if self.ask_yes_no(tr("Undo all changes"), tr("Restore the scene as it was when the device connected?")):
             self._replace_scene(self.original.copy(), push=True)
-            self.say("Restored the original scene.")
+            self.say(tr("Restored the original scene."))
 
     def toggle_led_mode(self):
         if self.scene is not None:
@@ -341,46 +360,46 @@ class App:
     # ------------------------------------------------------------------ files
 
     def open_file(self):
-        path = self.ask_open(title="Open preset", filetypes=[
-            ("Preset or SysEx", "*.json *.syx"), ("JSON preset", "*.json"), ("SysEx dump", "*.syx")])
+        path = self.ask_open(title=tr("Open preset"), filetypes=[
+            (tr("Preset or SysEx"), "*.json *.syx"), (tr("JSON preset"), "*.json"), (tr("SysEx dump"), "*.syx")])
         if not path:
             return
         try:
             scene = presets.load(path)
         except (ProtocolError, OSError) as e:
-            self.say(f"Could not open the file: {e}", theme.ERROR)
+            self.say(tr("Could not open the file: {error}", error=e), theme.ERROR)
             return
         self._replace_scene(scene, push=True)
-        self.say(f"Opened {os.path.basename(path)}.", theme.OK)
+        self.say(tr("Opened {name}.", name=os.path.basename(path)), theme.OK)
 
     def save_file(self):
         if self.scene is None:
             return
-        path = self.ask_save(title="Save preset", defaultextension=".json", filetypes=[
-            ("JSON preset", "*.json"), ("SysEx dump", "*.syx")])
+        path = self.ask_save(title=tr("Save preset"), defaultextension=".json", filetypes=[
+            (tr("JSON preset"), "*.json"), (tr("SysEx dump"), "*.syx")])
         if not path:
             return
         try:
             presets.save(path, self.scene)
         except (ProtocolError, OSError) as e:
-            self.say(f"Could not save the file: {e}", theme.ERROR)
+            self.say(tr("Could not save the file: {error}", error=e), theme.ERROR)
         else:
-            self.say(f"Saved {os.path.basename(path)}.", theme.OK)
+            self.say(tr("Saved {name}.", name=os.path.basename(path)), theme.OK)
 
     def export_cheatsheet(self):
         if self.scene is None:
             return
-        path = self.ask_save(title="Export CC overview", defaultextension=".csv",
-                             filetypes=[("CSV spreadsheet", "*.csv")])
+        path = self.ask_save(title=tr("Export CC overview"), defaultextension=".csv",
+                             filetypes=[(tr("CSV spreadsheet"), "*.csv")])
         if not path:
             return
         try:
             with open(path, "w", newline="", encoding="utf-8-sig") as f:
                 csv.writer(f).writerows(edit.cheatsheet_rows(self.scene))
         except OSError as e:
-            self.say(f"Could not export: {e}", theme.ERROR)
+            self.say(tr("Could not export: {error}", error=e), theme.ERROR)
         else:
-            self.say(f"Exported {os.path.basename(path)}.", theme.OK)
+            self.say(tr("Exported {name}.", name=os.path.basename(path)), theme.OK)
 
     def say(self, text, color=theme.MUTED):
         self._footer.itemconfigure(self._message, text=text, fill=color)
@@ -399,10 +418,10 @@ class App:
             return
         message = protocol.led_message(self.scene, key, on)
         if message is None:
-            self.say(f"{key.replace('_', ' ').title()} is disabled in the scene: it has no LED message.", theme.WARN)
+            self.say(tr("{name} is disabled in the scene: it has no LED message.", name=led_name(key)), theme.WARN)
             return
         if not self.link.set_led(message):
-            self.say("Could not send the LED message: is the nanoKONTROL 2 linked?", theme.ERROR)
+            self.say(tr("Could not send the LED message: is the nanoKONTROL 2 linked?"), theme.ERROR)
             return
         self._leds[key] = on
         self._page("leds").set_led(key, on)
@@ -412,7 +431,7 @@ class App:
         self._learner = row
         row.set_learning(True)
         self.link.start_learn()
-        self.say("Move or press a control on the device...")
+        self.say(tr("Move or press a control on the device..."))
 
     def cancel_learn(self):
         if self._learner is not None:
@@ -425,7 +444,7 @@ class App:
         if row is not None:
             row.set_learning(False)
             row.apply_learned(kind, number)
-            self.say(f"Learned {'CC' if kind == 'cc' else 'Note'} {number}.", theme.OK)
+            self.say(tr("Learned {kind} {number}.", kind="CC" if kind == "cc" else tr("Note"), number=number), theme.OK)
 
     # ------------------------------------------------------------------ monitor
 
@@ -464,7 +483,7 @@ class App:
     def _handle_event(self, kind, payload):
         if kind == "linked":
             self._reading = self._new_link = True
-            self.say("Reading the scene...")
+            self.say(tr("Reading the scene..."))
         elif kind == "settings":
             self._reading = False
             if self._new_link:
@@ -472,7 +491,7 @@ class App:
                 self.original = payload
             if self.scene is None or not self.link.has_pending:
                 self._replace_scene(payload, push=False)
-            self.say("Scene read from the device.", theme.OK)
+            self.say(tr("Scene read from the device."), theme.OK)
         elif kind == "writing":
             self._writing = True
         elif kind == "written":
@@ -480,13 +499,13 @@ class App:
             self._written_at = self.clock()
         elif kind == "write_failed":
             self._writing, self._failed = False, True
-            self.say(f"Write failed: {payload}", theme.ERROR)
+            self.say(tr("Write failed: {error}", error=payload), theme.ERROR)
         elif kind == "learned":
             self._learned(*payload)
         elif kind == "searching":
             self._reading = self._writing = False
             busy = isinstance(payload, MidiError) and "open" in str(payload).lower()
-            note = "Port busy: close the other program using the device." if busy else str(payload or "")
+            note = tr("Port busy: close the other program using the device.") if busy else str(payload or "")
             self._page("waiting").set_note(note)
             if note:
                 self.say(note, theme.ERROR)
@@ -553,32 +572,33 @@ class App:
         self._chrome_state = state
 
         if not linked:
-            text, style = "Searching for device...", "default"
+            text, style = tr("Searching for device..."), "default"
         elif self._reading:
-            text, style = "Reading scene...", "accent"
+            text, style = tr("Reading scene..."), "accent"
         elif self._failed:
-            text, style = "Write failed - click to retry", "danger"
+            text, style = tr("Write failed - click to retry"), "danger"
         elif busy:
-            text, style = "Writing to device...", "accent"
+            text, style = tr("Writing to device..."), "accent"
         elif saved:
-            text, style = "Saved to device", "ok"
+            text, style = tr("Saved to device"), "ok"
         else:
-            text, style = "Connected", "ok"
+            text, style = tr("Connected"), "ok"
         self._status.set_text(text)
         self._status.set_style(style)
 
         if scene is None:
-            self._led_chip.set_text("Ext LEDs: -")
+            self._led_chip.set_text(tr("Ext LEDs: {state}", state="-"))
             self._led_chip.set_style("default")
         else:
             external = scene.led_mode == 1
-            self._led_chip.set_text(f"Ext LEDs: {'ON' if external else 'OFF'}")
+            self._led_chip.set_text(tr("Ext LEDs: {state}", state=tr("ON") if external else tr("OFF")))
             self._led_chip.set_style("accent" if external else "default")
         self._led_chip.set_enabled(scene is not None)
 
         for widget in (self._save, self._export, self._factory, self._templates):
             widget.set_enabled(scene is not None)
         self._undo.set_enabled(self.original is not None and linked)
+        self._send.set_enabled(scene is not None and linked and not busy)
 
     def _on_status_click(self):
         if not self.link.linked:

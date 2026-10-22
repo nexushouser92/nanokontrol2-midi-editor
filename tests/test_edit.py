@@ -1,7 +1,10 @@
 import unittest
 
-from kontrol2_editor import edit, protocol
+from kontrol2_editor import edit, i18n, protocol
 from kontrol2_editor.protocol import Scene
+
+
+i18n.LANG = "en"
 
 
 class EditTest(unittest.TestCase):

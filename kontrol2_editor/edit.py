@@ -3,6 +3,7 @@
 Every function returns a new Scene (or plain data) and never mutates its input.
 """
 from . import protocol
+from .i18n import tr
 from .protocol import Scene
 
 TEMPLATES = ("Factory Defaults", "Generic CC", "Clear All")
@@ -106,17 +107,18 @@ def message_targets(scene):
 
 def cheatsheet_rows(scene):
     """Rows for a CSV overview of every assignment."""
-    rows = [["Section", "Control", "MIDI channel", "Type", "CC / Note", "Min / Off", "Max / On", "Behaviour"]]
+    rows = [[tr(t) for t in ("Section", "Control", "MIDI channel", "Type", "CC / Note", "Min / Off", "Max / On",
+                             "Behaviour")]]
     for key, name, ctrl in all_controls(scene):
         if key == "transport":
-            section, label = "Transport", protocol.TRANSPORT_LABELS[name]
+            section, label = tr("Transport"), tr(protocol.TRANSPORT_LABELS[name])
         else:
-            section, label = f"Channel {key + 1}", protocol.CHANNEL_CTRL_LABELS[name]
+            section, label = tr("Channel {n}", n=key + 1), tr(protocol.CHANNEL_CTRL_LABELS[name])
         enabled = ctrl.assign != 0
         rows.append([
             section, label, effective_channel(scene, key) + 1,
-            protocol.ASSIGN_OPTS[ctrl.assign], ctrl.cmd if enabled else "",
+            tr(protocol.ASSIGN_OPTS[ctrl.assign]), ctrl.cmd if enabled else "",
             ctrl.min_val if enabled else "", ctrl.max_val if enabled else "",
-            protocol.BEHAVIOUR_OPTS[ctrl.behaviour] if enabled and name not in ANALOG_CONTROLS else "",
+            tr(protocol.BEHAVIOUR_OPTS[ctrl.behaviour]) if enabled and name not in ANALOG_CONTROLS else "",
         ])
     return rows

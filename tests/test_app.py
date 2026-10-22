@@ -4,10 +4,12 @@ import tempfile
 import unittest
 from types import SimpleNamespace
 
-from kontrol2_editor import APP_NAME, edit, gui, pages, protocol, theme
+from kontrol2_editor import APP_NAME, edit, gui, i18n, pages, protocol, theme
 from kontrol2_editor.protocol import Scene
 
 from fakes import FakeLink
+
+i18n.LANG = "en"  # the texts checked below are the English ones
 
 
 def u_width(root):
@@ -272,9 +274,35 @@ class AppTest(unittest.TestCase):
         self.assertEqual(self.app.seen[(0, "slider")], [20, 100])
         self.assertEqual(page.itemcget(page.rows[(0, "slider")].readout, "text"), "100")
         self.assertEqual(page.rows[(0, "slider")].bar._live, 100)
-        self.app.clear_measured()
+        self.app.reset_ranges()
         self.assertEqual(self.app.seen, {})
         self.assertIsNone(page.rows[(0, "slider")].bar._live)
+
+    def test_spanish_interface(self):
+        self.root.destroy()
+        i18n.LANG = "es"
+        try:
+            self.root = gui.create_root()
+            self.app = gui.App(self.root, link=self.link, autostart=False, clock=lambda: self.now,
+                               ask_yes_no=self._confirm)
+            self.connect()
+            self.assertEqual(self.app._send._text, "Enviar al nanoKONTROL")
+            self.assertEqual(self.app._led_chip._text, "LEDs ext.: NO")
+            row = self.page("transport").rows["play"]
+            row._on_assign("Nota")
+            self.assertEqual(self.app.scene.transport.play.assign, 2)
+            self.app.apply_template("Borrar todo")
+            self.assertEqual(self.dialogs[-1], "Aplicar plantilla")
+            self.assertEqual(self.app.scene.transport.play.assign, 0)
+        finally:
+            i18n.LANG = "en"
+
+    def test_send_button_pushes_the_whole_scene_now(self):
+        self.connect()
+        before = len(self.link.pushed)
+        self.app.send_to_device()
+        self.assertEqual(len(self.link.pushed), before + 1)
+        self.assertIs(self.link.pushed[-1], self.app.scene)
 
     def test_changing_a_range_forgets_its_measurement(self):
         self.connect()
