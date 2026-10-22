@@ -85,7 +85,7 @@ RAIL_DANGER_HI = BUTTON_HOVER
 RAIL_DANGER_INK = "#d70015"
 DARK_UI = False           # light window frame
 
-UI_FONT_CHOICES = ("Lato", "Segoe UI", "Bahnschrift", "Trebuchet MS", "Verdana", "Tahoma")
+UI_FONT_CHOICES = ("Inter", "Segoe UI", "Bahnschrift", "Trebuchet MS", "Verdana", "Tahoma")
 FR_PRIVATE = 0x10
 MONO_FONT_CHOICES = ("Consolas", "Lucida Console", "Courier New")
 
@@ -123,7 +123,7 @@ def enable_dpi_awareness():
 
 
 def load_fonts(folder):
-    """Make the .ttf files in `folder` (Lato, shipped in assets/fonts) usable by this process only,
+    """Make the .ttf files in `folder` (Inter, shipped in assets/fonts) usable by this process only,
     without installing them in Windows. Must run before Tk lists the font families."""
     if sys.platform != "win32" or not os.path.isdir(folder):
         return
