@@ -3,7 +3,7 @@
 Unofficial scene editor for the KORG nanoKONTROL 2 (Windows). Not affiliated with KORG.
 It talks to the controller over USB MIDI (SysEx) and needs no driver beyond the one Windows already uses.
 
-![Channel page](docs/screenshot.png)
+![Sequencer page](docs/screenshot.png)
 
 ## Features
 - Edit every assignment: type (CC / Note), number, min / max (or off / on) and behaviour, for 8 strips plus the transport section.
