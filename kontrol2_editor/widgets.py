@@ -284,8 +284,9 @@ STYLES = {
     "cell_on": (theme.ACCENT_DARK, theme.ACCENT_DARK, theme.ACCENT_DARK, theme.ON_ACCENT),
     "led": (theme.LED, theme.LED_HI, theme.LED, theme.ON_ACCENT),
     "step_on": (theme.ACCENT_SOFT, theme.ACCENT_SOFT_HI, theme.ACCENT_SOFT_HI, theme.ACCENT_LO),
-    "rail": (theme.RAIL, theme.RAIL_FIELD, theme.RAIL_HOVER, theme.RAIL_MUTED),
-    "rail_on": (theme.ACCENT, theme.ACCENT, theme.ACCENT, theme.ON_ACCENT),
+    "rail": (theme.RAIL, theme.RAIL_HOVER, theme.RAIL_PRESS, theme.RAIL_TEXT),
+    "rail_on": (theme.RAIL_SELECTED, theme.RAIL_SELECTED, theme.RAIL_SELECTED, theme.ACCENT),
+    "rail_cell_on": (theme.ACCENT, theme.ACCENT, theme.ACCENT, theme.ON_ACCENT),
     "rail_button": (theme.RAIL_FIELD, theme.RAIL_HOVER, theme.RAIL_PRESS, theme.RAIL_TEXT),
     "rail_danger": (theme.RAIL_DANGER, theme.RAIL_DANGER_HI, theme.RAIL_DANGER_HI, theme.RAIL_DANGER_INK),
     "display": (theme.DISPLAY, theme.DISPLAY_HI, theme.DISPLAY, theme.DISPLAY_INK),
@@ -296,12 +297,13 @@ STYLES = {
 
 
 # (background, text) of a disabled button, for styles that do not sit on a light surface
-DISABLED = {name: (theme.RAIL, theme.RAIL_DIM) for name in ("rail", "rail_on", "rail_button", "rail_danger")}
+DISABLED = {name: (theme.RAIL, theme.RAIL_DIM)
+            for name in ("rail", "rail_on", "rail_cell_on", "rail_button", "rail_danger")}
 
 
 class Button(Widget):
     def __init__(self, cv, x, y, w, h, text, command=None, style="default",
-                 align="center", size=13, weight="normal", radius=7):
+                 align="center", size=13, weight="normal", radius=9):
         super().__init__(cv, x, y, w, h)
         self.command = command
         self.style = style
