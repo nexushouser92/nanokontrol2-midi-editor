@@ -18,28 +18,46 @@ GAP = 12
 PAGE_W = WINDOW_W - 2 * MARGIN - NAV_W - GAP
 PAGE_H = WINDOW_H - HEADER_H - 4 - FOOTER_H
 
-# --- palette ---
-BG          = "#0e1014"
-PANEL       = "#161a20"
-ROW         = "#1c2129"
-FIELD       = "#0d1116"
-FIELD_HI    = "#262c37"
-FIELD_HOVER = "#313846"
-EDGE        = "#2b313c"
-TEXT        = "#e9ecf2"
-MUTED       = "#8c95a6"
-GLYPH       = "#aab2c0"
-DIM         = "#566072"
-ACCENT      = "#5b8cff"
-ACCENT_HI   = "#7ba2ff"
-ACCENT_LO   = "#4670d8"
-ACCENT_DARK = "#22325e"
-OK          = "#2fbf71"
-OK_DARK     = "#1f6b47"
-WARN        = "#f5a623"
-WARN_DARK   = "#4a3510"
-ERROR       = "#ff6159"
-ERROR_DARK  = "#5c2422"
+# --- palette: a light "hardware" look ---
+# Soft grey case, white panels, navy ink instead of black, LED orange for anything lit,
+# and navy as the dark "display" colour of selected items.
+BG          = "#e3e5eb"   # window, behind the panels
+PANEL       = "#f7f8fa"   # cards
+ROW         = "#eef0f4"   # rows inside a card
+FIELD       = "#ffffff"   # text fields and value boxes
+FIELD_HI    = "#e6e8ee"   # buttons
+FIELD_HOVER = "#dadde6"
+PRESS       = "#cdd1dc"
+EDGE        = "#d3d7e0"   # hairlines and card borders
+TEXT        = "#3a3d63"   # navy ink
+MUTED       = "#83879f"
+GLYPH       = "#5d6185"
+DIM         = "#a9adbf"
+ACCENT      = "#464b7c"   # navy: main buttons, selected options, sliders
+ACCENT_HI   = "#575d94"
+ACCENT_LO   = "#383c66"
+ACCENT_DARK = "#3a3d63"   # selected navigation
+LED         = "#ff6a2b"   # LED orange: only what the hardware would light (steps, solos, activity)
+LED_HI      = "#ff8550"
+DISPLAY     = "#25273a"   # the dark "screen" of the status readout
+DISPLAY_HI  = "#30334a"
+DISPLAY_OK  = "#6fdba0"
+DISPLAY_BUSY = "#ffb067"
+DISPLAY_ERR = "#ff8a80"
+DISPLAY_INK = "#d9dbe8"
+OK          = "#2e9a63"
+OK_DARK     = "#2e9a63"
+OK_HI       = "#36ad70"
+OK_LO       = "#277f53"
+WARN        = "#d4761b"
+WARN_DARK   = "#fbe8d3"
+ERROR       = "#d8443c"
+ERROR_DARK  = "#f9dedb"
+ERROR_HOVER = "#f4cbc7"
+ERROR_PRESS = "#edb7b2"
+ERROR_INK   = "#b3261e"
+ON_ACCENT   = "#ffffff"   # text on orange, green or navy
+DARK_UI = False           # light window frame
 
 UI_FONT_CHOICES = ("Bahnschrift", "Trebuchet MS", "Verdana", "Tahoma")
 MONO_FONT_CHOICES = ("Consolas", "Lucida Console", "Courier New")
@@ -93,8 +111,8 @@ def setup(root):
 
 
 def dark_title_bar(root):
-    """Ask Windows for a dark caption so the window frame matches the interface."""
-    if sys.platform != "win32":
+    """Ask Windows for a dark caption so the window frame matches a dark interface."""
+    if sys.platform != "win32" or not DARK_UI:
         return
     try:
         root.update_idletasks()

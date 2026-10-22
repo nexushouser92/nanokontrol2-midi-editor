@@ -59,9 +59,16 @@ class Surface(tk.Canvas):
         x1, y1, x2, y2 = u(x), u(y), u(x + w), u(y + h)
         return self._shape("round", x1, y1, x2 - x1, y2 - y1, u(r), fill, "nw", bg)
 
-    def panel(self, x, y, w, h, r, fill):
-        """A large rounded card: two plain rectangles plus four small anti-aliased corners."""
-        x1, y1, x2, y2, pr = u(x), u(y), u(x + w), u(y + h), u(r)
+    def panel(self, x, y, w, h, r, fill, border=theme.EDGE):
+        """A large rounded card with a hairline border: two plain rectangles plus four small
+        anti-aliased corners, drawn in the border colour and again 1 px inside in `fill`."""
+        if border:
+            self._card(u(x), u(y), u(x + w), u(y + h), u(r), border)
+            self._card(u(x) + 1, u(y) + 1, u(x + w) - 1, u(y + h) - 1, u(r) - 1, fill)
+        else:
+            self._card(u(x), u(y), u(x + w), u(y + h), u(r), fill)
+
+    def _card(self, x1, y1, x2, y2, pr, fill):
         self.create_rectangle(x1 + pr, y1, x2 - pr, y2, fill=fill, outline="")
         self.create_rectangle(x1, y1 + pr, x2, y2 - pr, fill=fill, outline="")
         for kind, cx, cy, anchor in (("tl", x1, y1, "nw"), ("tr", x2, y1, "ne"),
@@ -188,7 +195,7 @@ class Surface(tk.Canvas):
             ed = tk.Entry(self, justify="center", relief="flat", bd=0, highlightthickness=1,
                           highlightbackground=theme.ACCENT, highlightcolor=theme.ACCENT,
                           bg=theme.FIELD, fg=theme.TEXT, insertbackground=theme.TEXT,
-                          selectbackground=theme.ACCENT, selectforeground="#ffffff",
+                          selectbackground=theme.ACCENT, selectforeground=theme.ON_ACCENT,
                           font=theme.font(13))
             for sequence in ("<Return>", "<KP_Enter>", "<Tab>"):
                 ed.bind(sequence, lambda _e: self._finish_edit(True))
@@ -267,14 +274,19 @@ class Widget:
 
 # (background, hover, pressed, text)
 STYLES = {
-    "default": (theme.FIELD_HI, theme.FIELD_HOVER, "#3b4352", theme.TEXT),
-    "accent": (theme.ACCENT, theme.ACCENT_HI, theme.ACCENT_LO, "#ffffff"),
-    "ok": (theme.OK_DARK, theme.OK, "#17553a", "#ffffff"),
-    "danger": (theme.ERROR_DARK, "#7a2d2a", "#4a1c1a", "#ffd6d3"),
-    "nav": (theme.PANEL, theme.FIELD_HI, theme.FIELD_HOVER, "#c3c9d4"),
-    "nav_on": (theme.ACCENT_DARK, theme.ACCENT_DARK, theme.ACCENT_DARK, "#ffffff"),
-    "cell": (theme.FIELD_HI, theme.FIELD_HOVER, "#3b4352", theme.TEXT),
-    "cell_on": (theme.ACCENT, theme.ACCENT, theme.ACCENT, "#ffffff"),
+    "default": (theme.FIELD_HI, theme.FIELD_HOVER, theme.PRESS, theme.TEXT),
+    "accent": (theme.ACCENT, theme.ACCENT_HI, theme.ACCENT_LO, theme.ON_ACCENT),
+    "ok": (theme.OK_DARK, theme.OK_HI, theme.OK_LO, theme.ON_ACCENT),
+    "danger": (theme.ERROR_DARK, theme.ERROR_HOVER, theme.ERROR_PRESS, theme.ERROR_INK),
+    "nav": (theme.PANEL, theme.FIELD_HI, theme.FIELD_HOVER, theme.GLYPH),
+    "nav_on": (theme.ACCENT_DARK, theme.ACCENT_DARK, theme.ACCENT_DARK, theme.ON_ACCENT),
+    "cell": (theme.FIELD_HI, theme.FIELD_HOVER, theme.PRESS, theme.TEXT),
+    "cell_on": (theme.ACCENT_DARK, theme.ACCENT_DARK, theme.ACCENT_DARK, theme.ON_ACCENT),
+    "led": (theme.LED, theme.LED_HI, theme.LED, theme.ON_ACCENT),
+    "display": (theme.DISPLAY, theme.DISPLAY_HI, theme.DISPLAY, theme.DISPLAY_INK),
+    "display_ok": (theme.DISPLAY, theme.DISPLAY_HI, theme.DISPLAY, theme.DISPLAY_OK),
+    "display_busy": (theme.DISPLAY, theme.DISPLAY_HI, theme.DISPLAY, theme.DISPLAY_BUSY),
+    "display_err": (theme.DISPLAY, theme.DISPLAY_HI, theme.DISPLAY, theme.DISPLAY_ERR),
 }
 
 
@@ -363,7 +375,7 @@ class Dropdown(Widget):
             self._menu = tk.Menu(
                 self.cv, tearoff=0, bd=0, relief="flat", activeborderwidth=0,
                 bg=theme.PANEL, fg=theme.TEXT, activebackground=theme.ACCENT,
-                activeforeground="#ffffff", font=theme.font(13))
+                activeforeground=theme.ON_ACCENT, font=theme.font(13))
             for v in self.values:
                 self._menu.add_command(label=v, command=lambda v=v: self._pick(v))
         self.cv.update_idletasks()
@@ -384,7 +396,7 @@ class Dropdown(Widget):
         if not self.enabled:
             fill, ink = theme.FIELD, theme.DIM
         else:
-            fill = "#3b4352" if self.pressed else theme.FIELD_HOVER if self.hovered else theme.FIELD_HI
+            fill = theme.PRESS if self.pressed else theme.FIELD_HOVER if self.hovered else theme.FIELD_HI
             ink = theme.TEXT
         self.cv.recolor(self._body, fill)
         self.cv.itemconfigure(self._label, fill=ink)
@@ -441,7 +453,7 @@ class Segmented(Widget):
             if not self.enabled:
                 ink = theme.DIM
             else:
-                ink = "#ffffff" if i == self.index else theme.MUTED
+                ink = theme.ON_ACCENT if i == self.index else theme.MUTED
             self.cv.itemconfigure(label, fill=ink)
 
 
@@ -701,4 +713,4 @@ class Dot:
     def set(self, on):
         if on != self.on:
             self.on = on
-            self.cv.recolor(self._item, theme.OK if on else theme.EDGE)
+            self.cv.recolor(self._item, theme.LED if on else theme.EDGE)

@@ -739,17 +739,17 @@ class App:
         self._chrome_state = state
 
         if not linked:
-            text, style = tr("Searching for device..."), "default"
+            text, style = tr("Searching for device..."), "display"
         elif self._reading:
-            text, style = tr("Reading scene..."), "accent"
+            text, style = tr("Reading scene..."), "display_busy"
         elif self._failed:
-            text, style = tr("Write failed - click to retry"), "danger"
+            text, style = tr("Write failed - click to retry"), "display_err"
         elif busy:
-            text, style = tr("Writing to device..."), "accent"
+            text, style = tr("Writing to device..."), "display_busy"
         elif saved:
-            text, style = tr("Saved to device"), "ok"
+            text, style = tr("Saved to device"), "display_ok"
         else:
-            text, style = tr("Connected"), "ok"
+            text, style = tr("Connected"), "display_ok"
         self._status.set_text(text)
         self._status.set_style(style)
 
@@ -759,7 +759,7 @@ class App:
         else:
             external = scene.led_mode == 1
             self._led_chip.set_text(tr("Ext LEDs: {state}", state=tr("ON") if external else tr("OFF")))
-            self._led_chip.set_style("accent" if external else "default")
+            self._led_chip.set_style("led" if external else "default")
         self._led_chip.set_enabled(scene is not None)
 
         for widget in (self._save, self._export, self._factory, self._templates):

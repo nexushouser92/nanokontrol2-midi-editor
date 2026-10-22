@@ -391,7 +391,7 @@ class LedPage(Page):
 
     def set_led(self, key, on):
         button = self.buttons[key]
-        button.set_style("ok" if on else "default")
+        button.set_style("led" if on else "default")
         if "_" in key and key.split("_")[0] in ("solo", "mute", "prime"):
             button.set_text(tr("On") if on else tr("Off"))
 
@@ -543,9 +543,9 @@ class SequencerPage(Page):
         for t in range(sequencer.TRACKS):
             self.tracks[t].set_text(f"{t + 1}   {sequencer.note_name(seq.notes[t])}")
             self.tracks[t].set_style("nav_on" if t == seq.selected else "nav")
-            self.solos[t].set_style("ok" if seq.solo[t] else "cell")
+            self.solos[t].set_style("led" if seq.solo[t] else "cell")
             for s, cell in enumerate(self.cells[t]):
-                cell.set_style("cell_on" if seq.steps[t][s] else "cell")
+                cell.set_style("led" if seq.steps[t][s] else "cell")
                 cell.set_text(str(seq.velocity[t][s]) if seq.steps[t][s] else "")
         for s, item in enumerate(self.numbers):
             self.itemconfigure(item, fill=theme.OK if s == seq.position else theme.MUTED)
