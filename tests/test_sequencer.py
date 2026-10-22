@@ -92,6 +92,29 @@ class SequencerTest(unittest.TestCase):
         self.assertEqual(sequencer.swing_percent(0), 50)
         self.assertEqual(sequencer.swing_percent(3), 75)
 
+    def test_set_plus_knob_2_picks_the_swing_resolution(self):
+        self.hold_set(True)
+        self.knob(1, 127)
+        self.assertTrue(self.seq.swing_eighths)
+        self.knob(1, 0)
+        self.assertFalse(self.seq.swing_eighths)
+
+    def note_on_ticks(self, steps):
+        times = []
+        self.seq.clock_message(START)
+        for tick in range(steps * sequencer.TICKS_PER_STEP):
+            for action in self.seq.clock_message(CLOCK):
+                if action[0] == "out" and action[1] & 0xF0 == 0x90:
+                    times.append(tick)
+        return times
+
+    def test_eighth_swing_delays_steps_3_7_11_15(self):
+        for s in (0, 1, 2, 4, 6):
+            self.seq.steps[0][s] = True
+        self.seq.swing_eighths = True
+        self.seq.swing = 3          # 6 ticks: the off-beat 8th lands on the next 16th
+        self.assertEqual(self.note_on_ticks(8), [0, 6, 18, 24, 42])
+
     def test_swing_delays_the_even_steps_only(self):
         self.seq.steps[0][0] = self.seq.steps[0][1] = self.seq.steps[0][2] = True
         self.seq.velocity[0][1] = 90

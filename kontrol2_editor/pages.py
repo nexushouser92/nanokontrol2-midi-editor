@@ -490,7 +490,7 @@ class SequencerPage(Page):
         self.text(28, 564, tr("On the device: Mute = steps 1-8  ·  Rec = steps 9-16  ·  Solo = solo of each track  ·  "
                               "Track ◀ ▶ = track"), 11, theme.MUTED)
         self.text(28, 584, tr("Marker ◀ ▶ = note  ·  Knobs = velocity of steps N and N+8  ·  Set + Knob 1 = swing  ·  "
-                              "Faders → DAW"), 11, theme.MUTED)
+                              "Set + Knob 2 = swing 1/16 or 1/8  ·  Faders → DAW"), 11, theme.MUTED)
         self._shown = None
 
     def _step_x(self, step):
@@ -517,7 +517,9 @@ class SequencerPage(Page):
         if state == self._shown:
             return
         self._shown = state
-        self.itemconfigure(self._swing, text=tr("Swing: {percent} %", percent=sequencer.swing_percent(seq.swing)))
+        self.itemconfigure(self._swing, text=tr("Swing {resolution}: {percent} %",
+                                                resolution="1/8" if seq.swing_eighths else "1/16",
+                                                percent=sequencer.swing_percent(seq.swing)))
         for t in range(sequencer.TRACKS):
             self.tracks[t].set_text(f"{t + 1}   {sequencer.note_name(seq.notes[t])}")
             self.tracks[t].set_style("nav_on" if t == seq.selected else "nav")

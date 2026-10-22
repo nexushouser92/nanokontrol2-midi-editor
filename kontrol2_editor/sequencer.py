@@ -5,7 +5,8 @@
   Solo 1-8             solo of tracks 1-8
   Track < >            select the previous / next track
   Knob 1-8             velocity of steps N and N+8 of the selected track
-  Set (held) + Knob 1  swing: the even steps (2, 4, ...) are delayed by 0-3 clock ticks
+  Set (held) + Knob 1  swing amount: 50, 58, 67 or 75 %
+  Set (held) + Knob 2  swing resolution: left 1/16 (delays steps 2, 4, 6, ...), right 1/8 (steps 3, 7, 11, 15)
   Marker < >           note of the selected track one semitone down / up, previewed on its channel
   Fader 1-8            passed through to the DAW unchanged
   Play / Stop / Rewind passed through to the DAW (map them there); Rewind also goes back to step 1
@@ -32,7 +33,7 @@ TICKS_PER_STEP = 6
 GATE_TICKS = 3
 VELOCITY = 100
 DEFAULT_NOTE = 60
-MAX_SWING = 3                    # clock ticks: 0-3 of the 6 in a step, i.e. 50 % to 75 % swing
+MAX_SWING = 3                    # swing levels 0-3: 50 % (straight) to 75 %
 PREVIEW_SECONDS = 0.3
 
 CLOCK, START, CONTINUE, STOP, SONG_POSITION = 0xF8, 0xFA, 0xFB, 0xFC, 0xF2
@@ -45,9 +46,16 @@ def note_name(note):
     return f"{NOTE_NAMES[note % 12]}{note // 12 - 1}"
 
 
-def swing_percent(ticks):
-    """Swing as the usual percentage: where the even step lands within a pair of steps (50 = straight)."""
-    return round(50 + 50 * ticks / TICKS_PER_STEP)
+def swing_percent(level):
+    """Swing level as the usual percentage: where the delayed note lands within its pair (50 = straight)."""
+    return round(50 + 25 * level / MAX_SWING)
+
+
+def swing_delay(level, eighths, step):
+    """Clock ticks by which `step` (0-15) is delayed. Each level is 1 tick at 1/16 and 2 ticks at 1/8."""
+    if eighths:
+        return 2 * level if step % 4 == 2 else 0
+    return level if step % 2 == 1 else 0
 
 
 def step_key(step):
@@ -86,7 +94,8 @@ class Sequencer:
         self.steps = [[False] * STEPS for _ in range(TRACKS)]
         self.velocity = [[VELOCITY] * STEPS for _ in range(TRACKS)]
         self.notes = [DEFAULT_NOTE] * TRACKS
-        self.swing = 0              # delay of the even steps, in clock ticks (0-MAX_SWING)
+        self.swing = 0              # swing level, 0-MAX_SWING
+        self.swing_eighths = False  # swing the off-beat 8ths (steps 3, 7, ...) instead of the 16ths
         self.shift = False          # Set marker held down
         self.solo = [False] * TRACKS
         self.selected = 0
@@ -110,6 +119,7 @@ class Sequencer:
     def to_dict(self):
         return {"steps": [[int(s) for s in row] for row in self.steps], "notes": list(self.notes),
                 "velocity": [list(row) for row in self.velocity], "swing": self.swing,
+                "swing_eighths": int(self.swing_eighths),
                 "solo": [int(s) for s in self.solo], "selected": self.selected}
 
     def load_dict(self, data):
@@ -121,6 +131,7 @@ class Sequencer:
             velocity = [[min(127, max(1, int(v))) for v in row][:STEPS]
                         for row in data.get("velocity", [])][:TRACKS]
             swing = min(MAX_SWING, max(0, int(data.get("swing", 0))))
+            eighths = bool(data.get("swing_eighths", False))
         except (KeyError, TypeError, ValueError):
             return
         for t, row in enumerate(steps):
@@ -130,6 +141,7 @@ class Sequencer:
         self.notes[:len(notes)] = notes
         self.solo[:len(solo)] = solo
         self.swing = swing
+        self.swing_eighths = eighths
         self.selected = min(TRACKS - 1, max(0, selected))
         self.version += 1
 
@@ -185,9 +197,15 @@ class Sequencer:
                 self.version += 1
         return []
 
-    def set_swing(self, ticks):
-        if self.swing != ticks:
-            self.swing = ticks
+    def set_swing(self, level):
+        if self.swing != level:
+            self.swing = level
+            self.version += 1
+        return []
+
+    def set_swing_eighths(self, eighths):
+        if self.swing_eighths != eighths:
+            self.swing_eighths = eighths
             self.version += 1
         return []
 
@@ -216,7 +234,11 @@ class Sequencer:
             return [("out", status, data1, data2)]
         if name == "knob":
             if self.shift:
-                return self.set_swing(data2 * (MAX_SWING + 1) // 128) if key == 0 else []
+                if key == 0:
+                    return self.set_swing(data2 * (MAX_SWING + 1) // 128)
+                if key == 1:
+                    return self.set_swing_eighths(data2 >= 64)
+                return []
             return self.set_velocity(self.selected, key, max(1, data2))
         pressed = data2 == self._max.get(target, 127) and data2 > 0
         if key == "transport":
@@ -299,11 +321,15 @@ class Sequencer:
             if old >= 0 and old != step:
                 actions.append(self._step_led(old))
             actions.append(self._step_led(step))
-        if phase == (self.swing if step % 2 else 0):
+        current = self._ticks // TICKS_PER_STEP
+        for absolute in (current, current - 1):     # a 1/8 swing can push a note into the next step
+            s = absolute % STEPS
+            if absolute < 0 or absolute * TICKS_PER_STEP + swing_delay(self.swing, self.swing_eighths, s) != self._ticks:
+                continue
             for track in range(TRACKS):
-                if self.steps[track][step] and self._audible(track):
+                if self.steps[track][s] and self._audible(track):
                     note = self.notes[track]
-                    actions.append(("out", 0x90 | track, note, self.velocity[track][step]))
+                    actions.append(("out", 0x90 | track, note, self.velocity[track][s]))
                     self._sounding.append((track, note, self._ticks + GATE_TICKS))
         return actions
 
