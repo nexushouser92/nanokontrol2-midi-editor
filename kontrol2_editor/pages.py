@@ -467,6 +467,7 @@ class SequencerPage(Page):
         self.out = Dropdown(self, 110, 88, 250, 36, [], app.set_seq_output, size=12)
         self.text(392, 106, tr("Clock from"), 12, theme.MUTED)
         self.clock = Dropdown(self, 482, 88, 250, 36, [], app.set_seq_clock, size=12)
+        self._swing = self.text(760, 106, "", 12, theme.MUTED)
         self._status = self.text(28, 150, "", 13, theme.MUTED)
         self.text(28, 176, tr("Setup: create two ports in loopMIDI. In the DAW, receive MIDI from the 'Notes to' "
                               "port and send MIDI clock to the 'Clock from' port."), 11, theme.DIM)
@@ -483,11 +484,13 @@ class SequencerPage(Page):
             self.solos.append(Button(self, 108, y, 34, self.ROW_H, "S", lambda t=t: app.seq_solo(t),
                                      style="cell", size=11, weight="bold"))
             row = [Button(self, self._step_x(s), y, self.STEP_W, self.ROW_H, "",
-                          lambda t=t, s=s: app.seq_toggle(t, s), style="cell")
+                          lambda t=t, s=s: app.seq_toggle(t, s), style="cell", size=10)
                    for s in range(sequencer.STEPS)]
             self.cells.append(row)
-        self.text(28, 572, tr("On the device: Mute = steps 1-8  ·  Rec = steps 9-16  ·  Solo = solo of each track  ·  "
-                              "Track ◀ ▶ = track  ·  Knobs or Marker ◀ ▶ = note  ·  Faders → DAW"), 11, theme.MUTED)
+        self.text(28, 564, tr("On the device: Mute = steps 1-8  ·  Rec = steps 9-16  ·  Solo = solo of each track  ·  "
+                              "Track ◀ ▶ = track"), 11, theme.MUTED)
+        self.text(28, 584, tr("Marker ◀ ▶ = note  ·  Knobs = velocity of steps N and N+8  ·  Set + Knob 1 = swing  ·  "
+                              "Faders → DAW"), 11, theme.MUTED)
         self._shown = None
 
     def _step_x(self, step):
@@ -514,11 +517,13 @@ class SequencerPage(Page):
         if state == self._shown:
             return
         self._shown = state
+        self.itemconfigure(self._swing, text=tr("Swing: {percent} %", percent=sequencer.swing_percent(seq.swing)))
         for t in range(sequencer.TRACKS):
             self.tracks[t].set_text(f"{t + 1}   {sequencer.note_name(seq.notes[t])}")
             self.tracks[t].set_style("nav_on" if t == seq.selected else "nav")
             self.solos[t].set_style("ok" if seq.solo[t] else "cell")
             for s, cell in enumerate(self.cells[t]):
                 cell.set_style("cell_on" if seq.steps[t][s] else "cell")
+                cell.set_text(str(seq.velocity[t][s]) if seq.steps[t][s] else "")
         for s, item in enumerate(self.numbers):
             self.itemconfigure(item, fill=theme.OK if s == seq.position else theme.MUTED)

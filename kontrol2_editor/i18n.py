@@ -189,9 +189,12 @@ ES = {
         "Preparación: crea dos puertos en loopMIDI. En el DAW, recibe MIDI del puerto de 'Notas a' "
         "y envía el reloj MIDI al puerto de 'Reloj desde'.",
     "On the device: Mute = steps 1-8  ·  Rec = steps 9-16  ·  Solo = solo of each track  ·  "
-    "Track ◀ ▶ = track  ·  Knobs or Marker ◀ ▶ = note  ·  Faders → DAW":
-        "En el equipo: Mute = pasos 1-8  ·  Rec = pasos 9-16  ·  Solo = solo de cada pista  ·  "
-        "Track ◀ ▶ = pista  ·  Perillas o Marker ◀ ▶ = nota  ·  Faders → DAW",
+    "Track ◀ ▶ = track":
+        "En el equipo: Mute = pasos 1-8  ·  Rec = pasos 9-16  ·  Solo = solo de cada pista  ·  Track ◀ ▶ = pista",
+    "Marker ◀ ▶ = note  ·  Knobs = velocity of steps N and N+8  ·  Set + Knob 1 = swing  ·  Faders → DAW":
+        "Marker ◀ ▶ = nota  ·  Perillas = velocity de los pasos N y N+8  ·  Set + Perilla 1 = swing  ·  "
+        "Faders → DAW",
+    "Swing: {percent} %": "Swing: {percent} %",
     "Stop the sequencer to change the scene.": "Desactiva el secuenciador para cambiar la escena.",
     "Connect the nanoKONTROL 2 to use the sequencer.": "Conecta el nanoKONTROL 2 para usar el secuenciador.",
     "Choose the 'Notes to' and 'Clock from' MIDI ports first.":

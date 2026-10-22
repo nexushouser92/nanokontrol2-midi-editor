@@ -61,16 +61,48 @@ class SequencerTest(unittest.TestCase):
         self.press("transport", "prev_track")
         self.assertEqual(self.seq.selected, 7)
 
-    def test_knobs_set_the_note_and_faders_go_to_the_daw(self):
-        knob = self.scene.groups[2].knob.cmd
-        self.assertEqual(self.seq.device_message(0xB0, knob, 0), [])
-        self.assertEqual(self.seq.notes[2], sequencer.KNOB_LOW)
-        self.seq.device_message(0xB0, knob, 127)
-        self.assertEqual(self.seq.notes[2], sequencer.KNOB_LOW + sequencer.KNOB_SPAN - 1)
-        self.seq.device_message(0xB0, knob, 64)
-        self.assertEqual(self.seq.notes[2], sequencer.KNOB_LOW + sequencer.KNOB_SPAN // 2)
+    def knob(self, n, value):
+        return self.seq.device_message(0xB0, self.scene.groups[n].knob.cmd, value)
+
+    def hold_set(self, held):
+        self.seq.device_message(0xB0, self.scene.transport.set_marker.cmd, 127 if held else 0)
+
+    def test_knobs_set_the_velocity_of_two_steps_and_faders_go_to_the_daw(self):
+        self.press("transport", "next_track")
+        self.assertEqual(self.knob(2, 40), [])
+        self.assertEqual(self.seq.velocity[1][2], 40)
+        self.assertEqual(self.seq.velocity[1][10], 40)
+        self.assertEqual(self.seq.velocity[0][2], sequencer.VELOCITY)
+        self.knob(2, 0)
+        self.assertEqual(self.seq.velocity[1][2], 1)
+        self.assertEqual(self.seq.notes, [sequencer.DEFAULT_NOTE] * sequencer.TRACKS)
         fader = self.scene.groups[5].slider.cmd
         self.assertEqual(outs(self.seq.device_message(0xB0, fader, 77)), [(0xB0, fader, 77)])
+
+    def test_set_plus_knob_1_sets_the_swing(self):
+        self.hold_set(True)
+        self.knob(0, 127)
+        self.knob(3, 10)
+        self.hold_set(False)
+        self.assertEqual(self.seq.swing, sequencer.MAX_SWING)
+        self.assertEqual(self.seq.velocity[0][3], sequencer.VELOCITY)
+        self.knob(0, 50)
+        self.assertEqual(self.seq.swing, sequencer.MAX_SWING)
+        self.assertEqual(self.seq.velocity[0][0], 50)
+        self.assertEqual(sequencer.swing_percent(0), 50)
+        self.assertEqual(sequencer.swing_percent(3), 75)
+
+    def test_swing_delays_the_even_steps_only(self):
+        self.seq.steps[0][0] = self.seq.steps[0][1] = self.seq.steps[0][2] = True
+        self.seq.velocity[0][1] = 90
+        self.seq.swing = 2
+        times = []
+        actions = self.seq.clock_message(START)
+        for tick in range(3 * sequencer.TICKS_PER_STEP):
+            for action in self.seq.clock_message(CLOCK):
+                if action[0] == "out" and action[1] & 0xF0 == 0x90:
+                    times.append((tick, action[3]))
+        self.assertEqual(times, [(0, sequencer.VELOCITY), (8, 90), (12, sequencer.VELOCITY)])
 
     def test_marker_buttons_nudge_and_preview_the_selected_tracks_note(self):
         self.press("transport", "next_track")
@@ -141,11 +173,15 @@ class SequencerTest(unittest.TestCase):
     def test_pattern_round_trip(self):
         self.seq.steps[4][15] = True
         self.seq.notes[4] = 72
+        self.seq.velocity[4][15] = 33
+        self.seq.swing = 1
         self.seq.solo[2] = True
         other = Sequencer(self.scene)
         other.load_dict(self.seq.to_dict())
         self.assertTrue(other.steps[4][15])
         self.assertEqual(other.notes[4], 72)
+        self.assertEqual(other.velocity[4][15], 33)
+        self.assertEqual(other.swing, 1)
         self.assertTrue(other.solo[2])
         other.load_dict({"steps": "junk"})
         self.assertTrue(other.steps[4][15])

@@ -4,7 +4,8 @@
   Mute 1-8 / Rec 1-8   steps 1-8 / 9-16 of the selected track (LEDs show the pattern and the playhead)
   Solo 1-8             solo of tracks 1-8
   Track < >            select the previous / next track
-  Knob 1-8             note of tracks 1-8, over KNOB_SPAN notes from KNOB_LOW (3 octaves: easy to aim)
+  Knob 1-8             velocity of steps N and N+8 of the selected track
+  Set (held) + Knob 1  swing: the even steps (2, 4, ...) are delayed by 0-3 clock ticks
   Marker < >           note of the selected track one semitone down / up, previewed on its channel
   Fader 1-8            passed through to the DAW unchanged
   Play / Stop / Rewind passed through to the DAW (map them there); Rewind also goes back to step 1
@@ -31,7 +32,7 @@ TICKS_PER_STEP = 6
 GATE_TICKS = 3
 VELOCITY = 100
 DEFAULT_NOTE = 60
-KNOB_LOW, KNOB_SPAN = 36, 36     # a full knob turn covers C2-B4
+MAX_SWING = 3                    # clock ticks: 0-3 of the 6 in a step, i.e. 50 % to 75 % swing
 PREVIEW_SECONDS = 0.3
 
 CLOCK, START, CONTINUE, STOP, SONG_POSITION = 0xF8, 0xFA, 0xFB, 0xFC, 0xF2
@@ -42,6 +43,11 @@ NOTE_NAMES = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
 def note_name(note):
     """MIDI note number as a name, middle C (60) = C4."""
     return f"{NOTE_NAMES[note % 12]}{note // 12 - 1}"
+
+
+def swing_percent(ticks):
+    """Swing as the usual percentage: where the even step lands within a pair of steps (50 = straight)."""
+    return round(50 + 50 * ticks / TICKS_PER_STEP)
 
 
 def step_key(step):
@@ -78,13 +84,16 @@ def control_map(scene):
 class Sequencer:
     def __init__(self, scene):
         self.steps = [[False] * STEPS for _ in range(TRACKS)]
+        self.velocity = [[VELOCITY] * STEPS for _ in range(TRACKS)]
         self.notes = [DEFAULT_NOTE] * TRACKS
+        self.swing = 0              # delay of the even steps, in clock ticks (0-MAX_SWING)
+        self.shift = False          # Set marker held down
         self.solo = [False] * TRACKS
         self.selected = 0
         self.playing = False
         self.position = -1          # step being played, -1 when stopped
         self._ticks = -1
-        self._sounding = []         # (channel, note) waiting for their note-off
+        self._sounding = []         # (channel, note, tick of its note-off)
         self._previewing = []       # (channel, note) of note previews, released by end_preview()
         self.version = 0            # bumped on every change the window should redraw
         self.set_scene(scene)
@@ -100,6 +109,7 @@ class Sequencer:
 
     def to_dict(self):
         return {"steps": [[int(s) for s in row] for row in self.steps], "notes": list(self.notes),
+                "velocity": [list(row) for row in self.velocity], "swing": self.swing,
                 "solo": [int(s) for s in self.solo], "selected": self.selected}
 
     def load_dict(self, data):
@@ -108,12 +118,18 @@ class Sequencer:
             notes = [min(127, max(0, int(n))) for n in data["notes"]][:TRACKS]
             solo = [bool(s) for s in data.get("solo", [])][:TRACKS]
             selected = int(data.get("selected", 0))
+            velocity = [[min(127, max(1, int(v))) for v in row][:STEPS]
+                        for row in data.get("velocity", [])][:TRACKS]
+            swing = min(MAX_SWING, max(0, int(data.get("swing", 0))))
         except (KeyError, TypeError, ValueError):
             return
         for t, row in enumerate(steps):
             self.steps[t][:len(row)] = row
+        for t, row in enumerate(velocity):
+            self.velocity[t][:len(row)] = row
         self.notes[:len(notes)] = notes
         self.solo[:len(solo)] = solo
+        self.swing = swing
         self.selected = min(TRACKS - 1, max(0, selected))
         self.version += 1
 
@@ -161,6 +177,20 @@ class Sequencer:
             self.version += 1
         return []
 
+    def set_velocity(self, track, column, velocity):
+        """Velocity of steps `column` and `column` + 8 of a track (one knob per column)."""
+        for step in (column, column + 8):
+            if self.velocity[track][step] != velocity:
+                self.velocity[track][step] = velocity
+                self.version += 1
+        return []
+
+    def set_swing(self, ticks):
+        if self.swing != ticks:
+            self.swing = ticks
+            self.version += 1
+        return []
+
     def nudge_note(self, track, semitones):
         """Move a track's note by `semitones` and play it briefly so it can be heard."""
         self.set_note(track, min(127, max(0, self.notes[track] + semitones)))
@@ -185,7 +215,9 @@ class Sequencer:
         if name == "slider":
             return [("out", status, data1, data2)]
         if name == "knob":
-            return self.set_note(key, KNOB_LOW + data2 * KNOB_SPAN // 128)
+            if self.shift:
+                return self.set_swing(data2 * (MAX_SWING + 1) // 128) if key == 0 else []
+            return self.set_velocity(self.selected, key, max(1, data2))
         pressed = data2 == self._max.get(target, 127) and data2 > 0
         if key == "transport":
             if name in ("play", "stop", "rew"):
@@ -197,6 +229,9 @@ class Sequencer:
                 return self.select(self.selected - 1)
             if pressed and name == "next_track":
                 return self.select(self.selected + 1)
+            if name == "set_marker":
+                self.shift = pressed
+                return []
             if pressed and name in ("prev_marker", "next_marker"):
                 return self.nudge_note(self.selected, -1 if name == "prev_marker" else 1)
             return []
@@ -255,29 +290,28 @@ class Sequencer:
         if not self.playing:
             return []
         self._ticks += 1
+        actions = self._release(self._ticks)
         phase = self._ticks % TICKS_PER_STEP
-        actions = []
-        if phase == GATE_TICKS:
-            actions += self._release()
-        if phase != 0:
-            return actions
-        actions += self._release()
-        old, self.position = self.position, (self._ticks // TICKS_PER_STEP) % STEPS
-        self.version += 1
-        for track in range(TRACKS):
-            if self.steps[track][self.position] and self._audible(track):
-                note = self.notes[track]
-                actions.append(("out", 0x90 | track, note, VELOCITY))
-                self._sounding.append((track, note))
-        if old >= 0 and old != self.position:
-            actions.append(self._step_led(old))
-        actions.append(self._step_led(self.position))
+        step = (self._ticks // TICKS_PER_STEP) % STEPS
+        if phase == 0:
+            old, self.position = self.position, step
+            self.version += 1
+            if old >= 0 and old != step:
+                actions.append(self._step_led(old))
+            actions.append(self._step_led(step))
+        if phase == (self.swing if step % 2 else 0):
+            for track in range(TRACKS):
+                if self.steps[track][step] and self._audible(track):
+                    note = self.notes[track]
+                    actions.append(("out", 0x90 | track, note, self.velocity[track][step]))
+                    self._sounding.append((track, note, self._ticks + GATE_TICKS))
         return actions
 
-    def _release(self):
-        actions = [("out", 0x80 | channel, note, 0) for channel, note in self._sounding]
-        self._sounding.clear()
-        return actions
+    def _release(self, now=None):
+        """Note-offs of the sounding notes that are due by tick `now` (all of them when None)."""
+        due = [s for s in self._sounding if now is None or s[2] <= now]
+        self._sounding = [s for s in self._sounding if s not in due]
+        return [("out", 0x80 | channel, note, 0) for channel, note, _ in due]
 
     def all_notes_off(self):
         return self._release() + self.end_preview()
