@@ -77,7 +77,7 @@ class AppTest(unittest.TestCase):
     def test_window_uses_the_new_name_and_font(self):
         self.assertEqual(self.root.title(), "MIDI Editor nanoKONTROL 2")
         self.assertEqual(APP_NAME, "MIDI Editor nanoKONTROL 2")
-        self.assertNotEqual(theme.ui_family, "Segoe UI")
+        self.assertIn(theme.ui_family, theme.UI_FONT_CHOICES)
 
     def test_layout_fits_the_window_at_any_scale(self):
         for zoom in (1.0, 1.1, 0.8):
@@ -93,7 +93,7 @@ class AppTest(unittest.TestCase):
                     self.assertLessEqual(w.winfo_x() + w.winfo_reqwidth(), u_width(root) + 1)
                     self.assertLessEqual(w.winfo_y() + w.winfo_reqheight(), u_height(root) + 1)
                 footer = max(surfaces, key=lambda w: w.winfo_y())
-                nav = next(w for w in surfaces if w.winfo_reqwidth() == gui.u(theme.NAV_W))
+                nav = next(w for w in surfaces if w.winfo_reqwidth() == gui.u(theme.MARGIN + theme.NAV_W))
                 self.assertLessEqual(nav.winfo_y() + nav.winfo_reqheight(), footer.winfo_y())
                 self.assertEqual(footer.winfo_y() + footer.winfo_reqheight(), u_height(root))
             finally:
@@ -396,7 +396,7 @@ class AppTest(unittest.TestCase):
         self.app.seq_solo(1)
         self.app.tick()
         self.assertTrue(self.app.seq.steps[2][5])
-        self.assertEqual(page.cells[2][5].style, "led")
+        self.assertEqual(page.cells[2][5].style, "step_on")
         self.assertEqual(page.solos[1].style, "led")
         self.now += gui.SEQ_SAVE_SECONDS + 1
         self.app.tick()

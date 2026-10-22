@@ -148,7 +148,7 @@ class App:
         root.bind("<Control-o>", lambda _e: self.open_file())
         root.bind("<Escape>", lambda _e: self.cancel_learn())
 
-        self._page_xy = (u(theme.MARGIN + theme.NAV_W + theme.GAP), u(theme.HEADER_H + 4))
+        self._page_xy = (u(theme.MARGIN + theme.NAV_W + theme.GAP), u(theme.HEADER_H + theme.GAP))
         self._build_header()
         self._build_sidebar()
         self._build_footer()
@@ -178,8 +178,9 @@ class App:
 
     def _build_header(self):
         width = theme.WINDOW_W
-        header = Surface(self.root, width, theme.HEADER_H)
+        header = Surface(self.root, width, theme.HEADER_H, bg=theme.PANEL)
         header.place(x=0, y=0)
+        header.hline(0, theme.HEADER_H - 1, width)
         try:
             logo = Image.open(icon_path("icon.png")).resize((u(40), u(40)), Image.LANCZOS)
             self._logo = ImageTk.PhotoImage(logo, master=self.root)
@@ -189,50 +190,56 @@ class App:
         header.text(64, 23, APP_NAME, 19, weight="bold")
         header.text(64, 44, tr("Unofficial scene editor for the KORG nanoKONTROL 2"), 11, theme.MUTED)
         self._status = Button(header, width - 16 - 212, 14, 212, 32, "", self._on_status_click,
-                              size=12, weight="bold", radius=16)
+                              size=12, weight="bold", radius=6)
         self._led_chip = Button(header, width - 16 - 212 - 8 - 144, 14, 144, 32, tr("Ext LEDs: {state}", state="-"),
-                                self.toggle_led_mode, size=12, weight="bold", radius=16)
+                                self.toggle_led_mode, size=12, weight="bold", radius=6)
         self._send = Button(header, width - 16 - 212 - 8 - 144 - 8 - 200, 14, 200, 32, tr("Send to nanoKONTROL"),
-                            self.send_to_device, style="accent", size=12, weight="bold", radius=16)
+                            self.send_to_device, style="accent", size=12, weight="bold", radius=6)
 
     def _build_sidebar(self):
-        nav = Surface(self.root, theme.NAV_W, theme.PAGE_H)
-        nav.place(x=u(theme.MARGIN), y=u(theme.HEADER_H + 4))
-        nav.panel(0, 0, theme.NAV_W, theme.PAGE_H, 14, theme.PANEL)
-        nav.backdrop = theme.PANEL
+        """The black navigation rail, flush with the left edge of the window."""
+        width, height = theme.MARGIN + theme.NAV_W, theme.WINDOW_H - theme.HEADER_H - theme.FOOTER_H
+        nav = Surface(self.root, width, height, bg=theme.RAIL)
+        nav.place(x=0, y=u(theme.HEADER_H))
         self._nav = {}
+        x0 = 20
 
         def section(key, label, x, y, w, h=36, align="left"):
-            self._nav[key] = Button(nav, x, y, w, h, label, lambda: self.show_section(key),
-                                    style="cell" if key.startswith("ch") else "nav",
-                                    align=align, size=14 if key.startswith("ch") else 13,
-                                    weight="bold" if key.startswith("ch") else "normal")
+            cell = key.startswith("ch")
+            self._nav[key] = Button(nav, x0 + x, y, w, h, label, lambda: self.show_section(key),
+                                    style="rail_button" if cell else "rail", align=align,
+                                    size=14 if cell else 13, weight="bold" if cell else "normal", radius=6)
 
-        section("global", tr("Global"), 12, 14, 176)
-        nav.text(16, 74, tr("CHANNELS"), 10, theme.MUTED, weight="bold")
+        def caption(y, text):
+            nav.text(x0 + 4, y, text, 10, theme.RAIL_MUTED, weight="bold")
+
+        section("global", tr("Global"), 0, 14, 176)
+        caption(74, tr("CHANNELS"))
         for i in range(protocol.NUM_GROUPS):
-            section(f"ch{i + 1}", str(i + 1), 12 + (i % 4) * 46, 92 + (i // 4) * 44, 38, 38, "center")
-        section("transport", tr("Transport"), 12, 190, 176)
-        section("calibration", tr("Calibration"), 12, 232, 176)
-        section("leds", tr("LED Test"), 12, 274, 176)
-        section("sequencer", tr("Sequencer"), 12, 316, 176)
-        section("monitor", tr("MIDI Monitor"), 12, 358, 176)
+            section(f"ch{i + 1}", str(i + 1), (i % 4) * 46, 92 + (i // 4) * 44, 38, 38, "center")
+        section("transport", tr("Transport"), 0, 190, 176)
+        section("calibration", tr("Calibration"), 0, 232, 176)
+        section("leds", tr("LED Test"), 0, 274, 176)
+        section("sequencer", tr("Sequencer"), 0, 316, 176)
+        section("monitor", tr("MIDI Monitor"), 0, 358, 176)
 
-        nav.hline(16, 408, 168)
-        nav.text(16, 428, tr("SCENE"), 10, theme.MUTED, weight="bold")
-        self._open = Button(nav, 12, 444, 84, 32, tr("Open"), self.open_file, size=12)
-        self._save = Button(nav, 104, 444, 84, 32, tr("Save"), self.save_file, size=12)
-        self._templates = Dropdown(nav, 12, 484, 176, 32, options(edit.TEMPLATES), self.apply_template,
-                                   caption=tr("Templates"), size=12)
-        self._export = Button(nav, 12, 524, 84, 32, tr("Export CC"), self.export_cheatsheet, size=12)
-        self._undo = Button(nav, 104, 524, 84, 32, tr("Undo all"), self.undo_all, size=12)
-        self._factory = Button(nav, 12, 564, 176, 32, tr("Factory reset"), self.factory_reset,
-                               style="danger", size=12)
+        nav.hline(x0 + 4, 408, 168, fill=theme.RAIL_EDGE)
+        caption(428, tr("SCENE"))
+        button = dict(style="rail_button", size=12, radius=6)
+        self._open = Button(nav, x0, 444, 84, 32, tr("Open"), self.open_file, **button)
+        self._save = Button(nav, x0 + 92, 444, 84, 32, tr("Save"), self.save_file, **button)
+        self._templates = Dropdown(nav, x0, 484, 176, 32, options(edit.TEMPLATES), self.apply_template,
+                                   caption=tr("Templates"), size=12, dark=True)
+        self._export = Button(nav, x0, 524, 84, 32, tr("Export CC"), self.export_cheatsheet, **button)
+        self._undo = Button(nav, x0 + 92, 524, 84, 32, tr("Undo all"), self.undo_all, **button)
+        self._factory = Button(nav, x0, 564, 176, 32, tr("Factory reset"), self.factory_reset,
+                               style="rail_danger", size=12, radius=6)
 
     def _build_footer(self):
         width = theme.WINDOW_W
-        footer = Surface(self.root, width, theme.FOOTER_H)
+        footer = Surface(self.root, width, theme.FOOTER_H, bg=theme.PANEL)
         footer.place(x=0, y=u(theme.WINDOW_H - theme.FOOTER_H))
+        footer.hline(0, 0, width)
         self._footer = footer
         self._message = footer.text(theme.MARGIN + 4, 16, "", 12, theme.MUTED)
         self._conflict_note = footer.text(width - theme.MARGIN - 300, 16, "", 12, theme.WARN, anchor="e")
@@ -252,7 +259,7 @@ class App:
         for key, button in self._nav.items():
             cell = key.startswith("ch")
             on = key == self.section
-            button.set_style(("cell_on" if on else "cell") if cell else ("nav_on" if on else "nav"))
+            button.set_style("rail_on" if on else "rail_button" if cell else "rail")
 
     def _present(self):
         self._style_nav()

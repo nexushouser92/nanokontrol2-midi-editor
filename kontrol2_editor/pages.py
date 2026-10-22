@@ -30,7 +30,7 @@ class Page(Surface):
         super().__init__(app.root, PAGE_W, PAGE_H)
         self.app = app
         self.version = -1
-        self.panel(0, 0, PAGE_W, PAGE_H, 14, theme.PANEL)
+        self.panel(0, 0, PAGE_W, PAGE_H, 8, theme.PANEL)
         self.backdrop = theme.PANEL
 
     def heading(self, title, subtitle=""):
@@ -545,7 +545,7 @@ class SequencerPage(Page):
             self.tracks[t].set_style("nav_on" if t == seq.selected else "nav")
             self.solos[t].set_style("led" if seq.solo[t] else "cell")
             for s, cell in enumerate(self.cells[t]):
-                cell.set_style("led" if seq.steps[t][s] else "cell")
+                cell.set_style("step_on" if seq.steps[t][s] else "cell")
                 cell.set_text(str(seq.velocity[t][s]) if seq.steps[t][s] else "")
         for s, item in enumerate(self.numbers):
-            self.itemconfigure(item, fill=theme.OK if s == seq.position else theme.MUTED)
+            self.itemconfigure(item, fill=theme.LED if s == seq.position else theme.MUTED)

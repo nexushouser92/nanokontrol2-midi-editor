@@ -283,11 +283,20 @@ STYLES = {
     "cell": (theme.FIELD_HI, theme.FIELD_HOVER, theme.PRESS, theme.TEXT),
     "cell_on": (theme.ACCENT_DARK, theme.ACCENT_DARK, theme.ACCENT_DARK, theme.ON_ACCENT),
     "led": (theme.LED, theme.LED_HI, theme.LED, theme.ON_ACCENT),
+    "step_on": (theme.ACCENT_SOFT, theme.ACCENT_SOFT_HI, theme.ACCENT_SOFT_HI, theme.ACCENT_LO),
+    "rail": (theme.RAIL, theme.RAIL_FIELD, theme.RAIL_HOVER, theme.RAIL_MUTED),
+    "rail_on": (theme.ACCENT, theme.ACCENT, theme.ACCENT, theme.ON_ACCENT),
+    "rail_button": (theme.RAIL_FIELD, theme.RAIL_HOVER, theme.RAIL_PRESS, theme.RAIL_TEXT),
+    "rail_danger": (theme.RAIL_DANGER, theme.RAIL_DANGER_HI, theme.RAIL_DANGER_HI, theme.RAIL_DANGER_INK),
     "display": (theme.DISPLAY, theme.DISPLAY_HI, theme.DISPLAY, theme.DISPLAY_INK),
     "display_ok": (theme.DISPLAY, theme.DISPLAY_HI, theme.DISPLAY, theme.DISPLAY_OK),
     "display_busy": (theme.DISPLAY, theme.DISPLAY_HI, theme.DISPLAY, theme.DISPLAY_BUSY),
     "display_err": (theme.DISPLAY, theme.DISPLAY_HI, theme.DISPLAY, theme.DISPLAY_ERR),
 }
+
+
+# (background, text) of a disabled button, for styles that do not sit on a light surface
+DISABLED = {name: (theme.RAIL, theme.RAIL_DIM) for name in ("rail", "rail_on", "rail_button", "rail_danger")}
 
 
 class Button(Widget):
@@ -328,7 +337,7 @@ class Button(Widget):
         self._painted = state
         base, hover, press, ink = STYLES[self.style]
         if not self.enabled:
-            fill, ink = theme.FIELD, theme.DIM
+            fill, ink = DISABLED.get(self.style, (theme.FIELD, theme.DIM))
         else:
             fill = press if self.pressed else hover if self.hovered else base
         self.cv.recolor(self._body, fill)
@@ -338,8 +347,9 @@ class Button(Widget):
 class Dropdown(Widget):
     """Click to open a menu. With `caption` it is an action menu: it never shows a selection."""
 
-    def __init__(self, cv, x, y, w, h, values, command, caption=None, size=13):
+    def __init__(self, cv, x, y, w, h, values, command, caption=None, size=13, dark=False):
         super().__init__(cv, x, y, w, h)
+        self.dark = dark       # on the black navigation rail
         self.values = list(values)
         self.command = command
         self.caption = caption
@@ -393,14 +403,20 @@ class Dropdown(Widget):
         if state == self._painted:
             return
         self._painted = state
-        if not self.enabled:
-            fill, ink = theme.FIELD, theme.DIM
+        if self.dark:
+            idle, hover, press, text, off, off_ink = (theme.RAIL_FIELD, theme.RAIL_HOVER, theme.RAIL_PRESS,
+                                                      theme.RAIL_TEXT, theme.RAIL, theme.RAIL_DIM)
         else:
-            fill = theme.PRESS if self.pressed else theme.FIELD_HOVER if self.hovered else theme.FIELD_HI
-            ink = theme.TEXT
+            idle, hover, press, text, off, off_ink = (theme.FIELD_HI, theme.FIELD_HOVER, theme.PRESS,
+                                                      theme.TEXT, theme.FIELD, theme.DIM)
+        if not self.enabled:
+            fill, ink = off, off_ink
+        else:
+            fill = press if self.pressed else hover if self.hovered else idle
+            ink = text
         self.cv.recolor(self._body, fill)
         self.cv.itemconfigure(self._label, fill=ink)
-        self.cv.recolor(self._arrow, ink if self.enabled else theme.DIM)
+        self.cv.recolor(self._arrow, ink)
 
 
 class Segmented(Widget):
