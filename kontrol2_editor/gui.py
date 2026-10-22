@@ -489,14 +489,14 @@ class App:
 
     def refresh_seq_ports(self):
         outs, ins = self.seq_ports()
-        self._page("sequencer").set_ports(outs, ins, self.seq_output, self.seq_clock)
+        self._page("sequencer").set_ports(outs, [tr("Internal clock")] + ins, self.seq_output, self.seq_clock)
 
     def set_seq_output(self, name):
         self.seq_output = name
         self._seq_changed_at = self.clock()
 
     def set_seq_clock(self, name):
-        self.seq_clock = name
+        self.seq_clock = sequencer.INTERNAL if name == tr("Internal clock") else name
         self._seq_changed_at = self.clock()
 
     def toggle_sequencer(self):
@@ -514,6 +514,7 @@ class App:
         if not self.seq_output or not self.seq_clock:
             self.say(tr("Choose the 'Notes to' and 'Clock from' MIDI ports first."), theme.WARN)
             return
+        internal = self.seq_clock == sequencer.INTERNAL
         if self.seq_output == self.seq_clock:
             self.say(tr("Use two different ports: one for the notes and one for the clock."), theme.WARN)
             return
@@ -521,7 +522,7 @@ class App:
         self._seq_scene = sequencer.sequencer_scene(self.scene)
         self.seq.set_scene(self._seq_scene)
         try:
-            self.seq_runner.start(self.seq_output, self.seq_clock)
+            self.seq_runner.start(self.seq_output, None if internal else self.seq_clock)
         except MidiError as e:
             self.say(tr("Could not open the MIDI port: {error}", error=e), theme.ERROR)
             return
@@ -531,7 +532,8 @@ class App:
         self.link.push(self._seq_scene, save=False)
         self.link.flush()
         self._chrome_state = None
-        self.say(tr("Sequencer on: press Play in your DAW."), theme.OK)
+        self.say(tr("Sequencer on: press Play on the nanoKONTROL 2.") if internal
+                 else tr("Sequencer on: press Play in your DAW."), theme.OK)
 
     def stop_sequencer(self):
         if not self.seq_on:
@@ -554,10 +556,18 @@ class App:
     def seq_solo(self, track):
         self.seq_runner.post(self.seq.toggle_solo, track)
 
+    def seq_tempo(self, bpm):
+        self.seq_runner.post(self.seq.set_tempo, bpm)
+
     def sequencer_status(self):
         if not self.seq_on:
             return tr("Sequencer off."), theme.MUTED
         runner = self.seq_runner
+        if self.seq_clock == sequencer.INTERNAL:
+            if self.seq.playing and self.seq.position >= 0:
+                return tr("Playing  ·  {bpm} BPM  ·  step {step}", bpm=self.seq.tempo,
+                          step=self.seq.position + 1), theme.OK
+            return tr("Stopped: press Play on the nanoKONTROL 2."), theme.MUTED
         bpm = f"{runner.bpm:.0f}" if runner.bpm else "-"
         if runner.last_clock is None or self.clock() - runner.last_clock > CLOCK_TIMEOUT:
             return tr("Waiting for the DAW clock: press Play in your DAW."), theme.WARN

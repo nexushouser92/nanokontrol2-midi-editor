@@ -140,6 +140,31 @@ class SequencerTest(unittest.TestCase):
         self.press("transport", "next_marker")
         self.assertEqual(self.seq.notes[1], 127)
 
+    def test_internal_clock_transport_is_local(self):
+        self.seq.internal = True
+        self.seq.steps[0][0] = True
+        self.assertEqual(outs(self.press("transport", "play")), [])
+        self.assertTrue(self.seq.playing)
+        self.seq.clock_message(CLOCK)
+        self.seq.clock_message(CLOCK)
+        self.press("transport", "rew")                  # while playing: from step 1 again
+        notes = outs(self.seq.clock_message(CLOCK))
+        self.assertEqual(notes, [(0x90, 60, sequencer.VELOCITY)])
+        self.press("transport", "stop")
+        self.assertFalse(self.seq.playing)
+        self.press("transport", "stop")                 # stop again: back to step 1
+        self.assertEqual(self.seq.position, -1)
+
+    def test_set_plus_knob_3_sets_the_tempo(self):
+        self.hold_set(True)
+        self.knob(2, 60)
+        self.assertEqual(self.seq.tempo, 120)
+        self.knob(2, 127)
+        self.assertEqual(self.seq.tempo, 187)
+        self.hold_set(False)
+        self.seq.set_tempo(1000)
+        self.assertEqual(self.seq.tempo, sequencer.MAX_TEMPO)
+
     def test_transport_buttons_also_go_to_the_daw(self):
         play = self.scene.transport.play.cmd
         self.assertEqual(outs(self.seq.device_message(0xB0, play, 127)), [(0xB0, play, 127)])
@@ -198,6 +223,7 @@ class SequencerTest(unittest.TestCase):
         self.seq.notes[4] = 72
         self.seq.velocity[4][15] = 33
         self.seq.swing = 1
+        self.seq.tempo = 90
         self.seq.solo[2] = True
         other = Sequencer(self.scene)
         other.load_dict(self.seq.to_dict())
@@ -205,6 +231,7 @@ class SequencerTest(unittest.TestCase):
         self.assertEqual(other.notes[4], 72)
         self.assertEqual(other.velocity[4][15], 33)
         self.assertEqual(other.swing, 1)
+        self.assertEqual(other.tempo, 90)
         self.assertTrue(other.solo[2])
         other.load_dict({"steps": "junk"})
         self.assertTrue(other.steps[4][15])

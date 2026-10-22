@@ -177,24 +177,29 @@ ES = {
 
     # sequencer page
     "Sequencer": "Secuenciador",
-    "8 tracks × 16 steps, played from the nanoKONTROL 2 and clocked by your DAW":
-        "8 pistas × 16 pasos, tocado desde el nanoKONTROL 2 y sincronizado con tu DAW",
+    "8 tracks × 16 steps, played from the nanoKONTROL 2":
+        "8 pistas × 16 pasos, tocado desde el nanoKONTROL 2",
     "Start sequencer": "Activar secuenciador",
     "Stop sequencer": "Desactivar secuenciador",
     "Notes to": "Notas a",
     "Clock from": "Reloj desde",
     "Choose a port": "Elige un puerto",
-    "Setup: create two ports in loopMIDI. In the DAW, receive MIDI from the 'Notes to' "
-    "port and send MIDI clock to the 'Clock from' port.":
-        "Preparación: crea dos puertos en loopMIDI. En el DAW, recibe MIDI del puerto de 'Notas a' "
-        "y envía el reloj MIDI al puerto de 'Reloj desde'.",
-    "On the device: Mute = steps 1-8  ·  Rec = steps 9-16  ·  Solo = solo of each track  ·  "
-    "Track ◀ ▶ = track":
-        "En el equipo: Mute = pasos 1-8  ·  Rec = pasos 9-16  ·  Solo = solo de cada pista  ·  Track ◀ ▶ = pista",
-    "Marker ◀ ▶ = note  ·  Knobs = velocity of steps N and N+8  ·  Set + Knob 1 = swing  ·  "
-    "Set + Knob 2 = swing 1/16 or 1/8  ·  Faders → DAW":
-        "Marker ◀ ▶ = nota  ·  Perillas = velocity de los pasos N y N+8  ·  Set + Perilla 1 = swing  ·  "
-        "Set + Perilla 2 = swing 1/16 o 1/8  ·  Faders → DAW",
+    "Internal clock: plays on its own, with Play / Stop on the nanoKONTROL 2. To follow a DAW, "
+    "receive its MIDI clock through a loopMIDI port.":
+        "Reloj interno: toca por sí solo, con Play / Stop del nanoKONTROL 2. Para seguir a un DAW, "
+        "recibe su reloj MIDI por un puerto de loopMIDI.",
+    "On the device: Mute = steps 1-8  ·  Rec = steps 9-16  ·  Solo = solo  ·  "
+    "Track ◀ ▶ = track  ·  Marker ◀ ▶ = note  ·  Knobs = velocity of steps N and N+8":
+        "En el equipo: Mute = pasos 1-8  ·  Rec = pasos 9-16  ·  Solo = solo  ·  "
+        "Track ◀ ▶ = pista  ·  Marker ◀ ▶ = nota  ·  Perillas = velocity de los pasos N y N+8",
+    "Set + Knob 1 = swing  ·  Set + Knob 2 = swing 1/16 or 1/8  ·  Set + Knob 3 = tempo  ·  "
+    "Faders → output":
+        "Set + Perilla 1 = swing  ·  Set + Perilla 2 = swing 1/16 o 1/8  ·  Set + Perilla 3 = tempo  ·  "
+        "Faders → salida",
+    "Tempo (BPM)": "Tempo (BPM)",
+    "Internal clock": "Reloj interno",
+    "Sequencer on: press Play on the nanoKONTROL 2.": "Secuenciador activado: pulsa Play en el nanoKONTROL 2.",
+    "Stopped: press Play on the nanoKONTROL 2.": "Detenido: pulsa Play en el nanoKONTROL 2.",
     "Swing {resolution}: {percent} %": "Swing {resolution}: {percent} %",
     "Stop the sequencer to change the scene.": "Desactiva el secuenciador para cambiar la escena.",
     "Connect the nanoKONTROL 2 to use the sequencer.": "Conecta el nanoKONTROL 2 para usar el secuenciador.",

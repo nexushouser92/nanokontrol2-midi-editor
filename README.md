@@ -11,7 +11,7 @@ It talks to the controller over USB MIDI (SysEx) and needs no driver beyond the 
 - MIDI Learn, live activity indicators, CC conflict warnings and a MIDI monitor.
 - LED test for External LED mode, custom DAW assign slots, templates, copy strip to strips.
 - Open / save presets (`.json`, `.syx`), export a CSV overview, undo all, factory reset.
-- **Sequencer**: 8 tracks × 16 steps played from the device (Mute / Rec rows = steps, Solo = solo, Track ◀ ▶ = track, Marker ◀ ▶ = note, knobs = step velocity, Set + knob 1 = swing, Set + knob 2 = swing on 1/16 or 1/8), clocked by your DAW through two loopMIDI ports; faders keep going to the DAW.
+- **Sequencer**: 8 tracks × 16 steps played from the device (Mute / Rec rows = steps, Solo = solo, Track ◀ ▶ = track, Marker ◀ ▶ = note, knobs = step velocity, Set + knob 1 = swing, Set + knob 2 = swing on 1/16 or 1/8), clocked by its own internal clock (to play a USB synth on its own) or by your DAW through loopMIDI; faders keep going to the output.
 - English and Spanish, following your Windows language.
 - Fast, anti-aliased interface drawn on plain Tk canvases.
 

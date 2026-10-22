@@ -459,7 +459,7 @@ class SequencerPage(Page):
 
     def __init__(self, app):
         super().__init__(app)
-        self.heading(tr("Sequencer"), tr("8 tracks × 16 steps, played from the nanoKONTROL 2 and clocked by your DAW"))
+        self.heading(tr("Sequencer"), tr("8 tracks × 16 steps, played from the nanoKONTROL 2"))
         self.power = Button(self, PAGE_W - 28 - 190, 18, 190, 34, tr("Start sequencer"), app.toggle_sequencer,
                             style="accent", size=12, weight="bold")
 
@@ -469,8 +469,11 @@ class SequencerPage(Page):
         self.clock = Dropdown(self, 482, 88, 250, 36, [], app.set_seq_clock, size=12)
         self._swing = self.text(760, 106, "", 12, theme.MUTED)
         self._status = self.text(28, 150, "", 13, theme.MUTED)
-        self.text(28, 176, tr("Setup: create two ports in loopMIDI. In the DAW, receive MIDI from the 'Notes to' "
-                              "port and send MIDI clock to the 'Clock from' port."), 11, theme.DIM)
+        self.text(PAGE_W - 28 - 120 - 12, 150, tr("Tempo (BPM)"), 12, theme.MUTED, anchor="e")
+        self.tempo = Spin(self, PAGE_W - 28 - 120, 134, 120, 32, sequencer.MIN_TEMPO, sequencer.MAX_TEMPO,
+                          app.seq_tempo, size=12)
+        self.text(28, 176, tr("Internal clock: plays on its own, with Play / Stop on the nanoKONTROL 2. To follow a DAW, "
+                              "receive its MIDI clock through a loopMIDI port."), 11, theme.DIM)
 
         self.numbers = []
         for s in range(sequencer.STEPS):
@@ -487,10 +490,11 @@ class SequencerPage(Page):
                           lambda t=t, s=s: app.seq_toggle(t, s), style="cell", size=10)
                    for s in range(sequencer.STEPS)]
             self.cells.append(row)
-        self.text(28, 564, tr("On the device: Mute = steps 1-8  ·  Rec = steps 9-16  ·  Solo = solo of each track  ·  "
-                              "Track ◀ ▶ = track"), 11, theme.MUTED)
-        self.text(28, 584, tr("Marker ◀ ▶ = note  ·  Knobs = velocity of steps N and N+8  ·  Set + Knob 1 = swing  ·  "
-                              "Set + Knob 2 = swing 1/16 or 1/8  ·  Faders → DAW"), 11, theme.MUTED)
+        self.text(28, 564, tr("On the device: Mute = steps 1-8  ·  Rec = steps 9-16  ·  Solo = solo  ·  "
+                              "Track ◀ ▶ = track  ·  Marker ◀ ▶ = note  ·  Knobs = velocity of steps N and N+8"),
+                  11, theme.MUTED)
+        self.text(28, 584, tr("Set + Knob 1 = swing  ·  Set + Knob 2 = swing 1/16 or 1/8  ·  Set + Knob 3 = tempo  ·  "
+                              "Faders → output"), 11, theme.MUTED)
         self._shown = None
 
     def _step_x(self, step):
@@ -505,7 +509,7 @@ class SequencerPage(Page):
         self.out.set_values(outs)
         self.clock.set_values(ins)
         self.out.set(out or tr("Choose a port"))
-        self.clock.set(clock or tr("Choose a port"))
+        self.clock.set(tr("Internal clock") if clock == sequencer.INTERNAL else clock or tr("Choose a port"))
 
     def show(self, seq, on, status, status_color):
         self.power.set_text(tr("Stop sequencer") if on else tr("Start sequencer"))
@@ -517,6 +521,7 @@ class SequencerPage(Page):
         if state == self._shown:
             return
         self._shown = state
+        self.tempo.set(seq.tempo)
         self.itemconfigure(self._swing, text=tr("Swing {resolution}: {percent} %",
                                                 resolution="1/8" if seq.swing_eighths else "1/16",
                                                 percent=sequencer.swing_percent(seq.swing)))

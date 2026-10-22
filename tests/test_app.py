@@ -318,7 +318,20 @@ class AppTest(unittest.TestCase):
         self.app.show_section("sequencer")
         page = self.page("sequencer")
         self.assertEqual(page.out.values, ["loopMIDI notes", "Microsoft GS Wavetable Synth"])
-        self.assertEqual(page.clock.values, ["loopMIDI clock"])
+        self.assertEqual(page.clock.values, ["Internal clock", "loopMIDI clock"])
+
+    def test_sequencer_with_the_internal_clock_needs_only_an_output(self):
+        self.connect()
+        self.app.show_section("sequencer")
+        self.app.set_seq_output("loopMIDI notes")
+        self.app.set_seq_clock("Internal clock")
+        self.assertEqual(self.app.seq_clock, "internal")
+        self.app.start_sequencer()
+        self.assertTrue(self.app.seq_on)
+        self.assertEqual(self.runner.started, ("loopMIDI notes", None))
+        self.assertIn("press Play on the nanoKONTROL 2", self.app.sequencer_status()[0])
+        self.app.seq_tempo(97)
+        self.assertEqual(self.app.seq.tempo, 97)
 
     def test_sequencer_needs_two_ports(self):
         self.connect()

@@ -8,17 +8,22 @@
   Set (held) + Knob 1  swing amount: 50, 58, 67 or 75 %
   Set (held) + Knob 2  swing resolution: left 1/16 (delays steps 2, 4, 6, ...), right 1/8 (steps 3, 7, 11, 15)
   Marker < >           note of the selected track one semitone down / up, previewed on its channel
-  Fader 1-8            passed through to the DAW unchanged
-  Play / Stop / Rewind passed through to the DAW (map them there); Rewind also goes back to step 1
+  Set (held) + Knob 3  tempo of the internal clock, 60-187 BPM
+  Fader 1-8            passed through to the output unchanged
+  Play / Stop / Rewind with the DAW's clock: passed through to the DAW (map them there), Rewind also
+                       goes back to step 1; with the internal clock: start, stop and rewind the sequencer
 
-Track t plays on MIDI channel t. The tempo comes from the DAW's MIDI clock (24 per quarter note,
-so 6 per 16th-note step); Start, Continue, Stop and Song Position Pointer are followed.
+Track t plays on MIDI channel t. The tempo comes from MIDI clock (24 per quarter note, so 6 per
+16th-note step): the DAW's, whose Start, Continue, Stop and Song Position Pointer are followed, or the
+internal clock, which SequencerRunner generates when no clock input is given (to play a hardware
+synth on its own).
 
 `Sequencer` is the pure logic: every method returns a list of actions,
   ("out", status, data1, data2)   to the DAW
   ("led", key, on)                to a button LED of the device (protocol.LED_BUTTONS key)
 `SequencerRunner` connects it to the MIDI ports on its own thread.
 """
+import ctypes
 import json
 import os
 import queue
@@ -35,8 +40,12 @@ VELOCITY = 100
 DEFAULT_NOTE = 60
 MAX_SWING = 3                    # swing levels 0-3: 50 % (straight) to 75 %
 PREVIEW_SECONDS = 0.3
+DEFAULT_TEMPO, MIN_TEMPO, MAX_TEMPO = 120, 40, 240
+KNOB_TEMPO_LOW = 60              # Set + knob 3 covers 60-187 BPM
 
 CLOCK, START, CONTINUE, STOP, SONG_POSITION = 0xF8, 0xFA, 0xFB, 0xFC, 0xF2
+SPIN_SECONDS = 0.002            # internal clock: busy-wait this long before each tick
+INTERNAL = "internal"           # clock setting: use the internal clock
 
 NOTE_NAMES = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
 
@@ -97,6 +106,8 @@ class Sequencer:
         self.swing = 0              # swing level, 0-MAX_SWING
         self.swing_eighths = False  # swing the off-beat 8ths (steps 3, 7, ...) instead of the 16ths
         self.shift = False          # Set marker held down
+        self.tempo = DEFAULT_TEMPO  # BPM of the internal clock
+        self.internal = False       # True: Play / Stop / Rewind drive the internal clock
         self.solo = [False] * TRACKS
         self.selected = 0
         self.playing = False
@@ -119,7 +130,7 @@ class Sequencer:
     def to_dict(self):
         return {"steps": [[int(s) for s in row] for row in self.steps], "notes": list(self.notes),
                 "velocity": [list(row) for row in self.velocity], "swing": self.swing,
-                "swing_eighths": int(self.swing_eighths),
+                "swing_eighths": int(self.swing_eighths), "tempo": self.tempo,
                 "solo": [int(s) for s in self.solo], "selected": self.selected}
 
     def load_dict(self, data):
@@ -132,6 +143,7 @@ class Sequencer:
                         for row in data.get("velocity", [])][:TRACKS]
             swing = min(MAX_SWING, max(0, int(data.get("swing", 0))))
             eighths = bool(data.get("swing_eighths", False))
+            tempo = min(MAX_TEMPO, max(MIN_TEMPO, int(data.get("tempo", DEFAULT_TEMPO))))
         except (KeyError, TypeError, ValueError):
             return
         for t, row in enumerate(steps):
@@ -142,6 +154,7 @@ class Sequencer:
         self.solo[:len(solo)] = solo
         self.swing = swing
         self.swing_eighths = eighths
+        self.tempo = tempo
         self.selected = min(TRACKS - 1, max(0, selected))
         self.version += 1
 
@@ -203,6 +216,13 @@ class Sequencer:
             self.version += 1
         return []
 
+    def set_tempo(self, bpm):
+        bpm = min(MAX_TEMPO, max(MIN_TEMPO, int(bpm)))
+        if self.tempo != bpm:
+            self.tempo = bpm
+            self.version += 1
+        return []
+
     def set_swing_eighths(self, eighths):
         if self.swing_eighths != eighths:
             self.swing_eighths = eighths
@@ -238,10 +258,20 @@ class Sequencer:
                     return self.set_swing(data2 * (MAX_SWING + 1) // 128)
                 if key == 1:
                     return self.set_swing_eighths(data2 >= 64)
+                if key == 2:
+                    return self.set_tempo(KNOB_TEMPO_LOW + data2)
                 return []
             return self.set_velocity(self.selected, key, max(1, data2))
         pressed = data2 == self._max.get(target, 127) and data2 > 0
         if key == "transport":
+            if name in ("play", "stop", "rew") and self.internal:
+                if not pressed:
+                    return []
+                if name == "play":
+                    return [] if self.playing else self.clock_message(START)
+                if name == "stop":
+                    return self.clock_message(STOP) if self.playing else self.rewind()
+                return self.restart() if self.playing else self.rewind()
             if name in ("play", "stop", "rew"):
                 actions = [("out", status, data1, data2)]
                 if pressed and name == "rew":
@@ -296,6 +326,12 @@ class Sequencer:
             self._ticks = sixteenths * TICKS_PER_STEP - 1
             return []
         return []
+
+    def restart(self):
+        """Back to step 1 while playing: the next clock plays it."""
+        actions = self._release()
+        self._ticks = -1
+        return actions
 
     def rewind(self):
         if self.playing:
@@ -368,6 +404,8 @@ class SequencerRunner:
         self._thread = None
         self._lock = threading.Lock()
         self._preview_timer = None
+        self._ticker = None
+        self._ticking = None
         self.last_clock = None
         self.bpm = None
         self._clock_times = []
@@ -376,23 +414,32 @@ class SequencerRunner:
     def running(self):
         return self._thread is not None
 
-    def start(self, out_name, clock_name):
-        """Open the ports by name and start. Raises midi_win.MidiError if one cannot be opened."""
+    def start(self, out_name, clock_name=None):
+        """Open the ports by name and start; with no clock_name the internal clock runs at seq.tempo.
+        Raises midi_win.MidiError if a port cannot be opened."""
         ins, outs = self.lister()
         if out_name not in outs:
             raise midi_win.MidiError(f"MIDI output not found: {out_name}")
-        if clock_name not in ins:
+        if clock_name is not None and clock_name not in ins:
             raise midi_win.MidiError(f"MIDI input not found: {clock_name}")
         self._out = self.opener(None, outs.index(out_name))
-        try:
-            self._in = self.opener(ins.index(clock_name), None)
-        except BaseException:
-            self._out.close()
-            self._out = None
-            raise
-        self._in.on_short = lambda s, d1, d2: self._queue.put(("clock", s, d1, d2))
+        if clock_name is not None:
+            try:
+                self._in = self.opener(ins.index(clock_name), None)
+            except BaseException:
+                self._out.close()
+                self._out = None
+                raise
+            self._in.on_short = lambda s, d1, d2: self._queue.put(("clock", s, d1, d2))
+        self.seq.internal = clock_name is None
+        self._clock_times = []
+        self.bpm = self.last_clock = None
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
+        if clock_name is None:
+            self._ticking = threading.Event()
+            self._ticker = threading.Thread(target=self._internal_clock, args=(self._ticking,), daemon=True)
+            self._ticker.start()
         self.post(self.seq.all_leds)
 
     def stop(self):
@@ -400,6 +447,10 @@ class SequencerRunner:
             return
         if self._preview_timer is not None:
             self._preview_timer.cancel()
+        if self._ticker is not None:
+            self._ticking.set()
+            self._ticker.join(2.0)
+            self._ticker = None
         self._queue.put(("quit",))
         self._thread.join(2.0)
         self._thread = None
@@ -409,6 +460,28 @@ class SequencerRunner:
         self._in = self._out = None
         with self._lock:
             self._apply(self.seq.leds_off())
+
+    def _internal_clock(self, stop):
+        """24 clocks per quarter note at seq.tempo. Sleeps with 1 ms timer resolution, then spins the
+        last moment, so the ticks stay steady (the default Windows sleep is only 15.6 ms accurate)."""
+        winmm = ctypes.windll.winmm if hasattr(ctypes, "windll") else None
+        if winmm:
+            winmm.timeBeginPeriod(1)
+        try:
+            due = time.perf_counter()
+            while not stop.is_set():
+                due += 60.0 / (self.seq.tempo * 24)
+                wait = due - time.perf_counter()
+                if wait > SPIN_SECONDS:
+                    stop.wait(wait - SPIN_SECONDS)
+                while time.perf_counter() < due:
+                    pass
+                if time.perf_counter() - due > 0.1:     # fell far behind (system busy): don't rush
+                    due = time.perf_counter()
+                self._queue.put(("clock", CLOCK, 0, 0))
+        finally:
+            if winmm:
+                winmm.timeEndPeriod(1)
 
     def device_message(self, status, data1, data2):
         """From the device link's MIDI callback."""
