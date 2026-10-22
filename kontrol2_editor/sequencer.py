@@ -46,8 +46,34 @@ KNOB_TEMPO_LOW = 60              # Set + knob 3 covers 60-187 BPM
 CLOCK, START, CONTINUE, STOP, SONG_POSITION = 0xF8, 0xFA, 0xFB, 0xFC, 0xF2
 SPIN_SECONDS = 0.002            # internal clock: busy-wait this long before each tick
 INTERNAL = "internal"           # clock setting: use the internal clock
+LOOPMIDI_URL = "https://www.tobias-erichsen.de/software/loopmidi.html"
+UNINSTALL_KEYS = (r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+                  r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall")
 
 NOTE_NAMES = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
+
+
+def loopmidi_installed():
+    """True when loopMIDI is installed (it is only needed to send the sequencer to a DAW). Its license
+    forbids redistributing it, so the editor links to its download page instead of bundling it."""
+    try:
+        import winreg
+    except ImportError:
+        return False
+    for path in UNINSTALL_KEYS:
+        try:
+            key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, path)
+        except OSError:
+            continue
+        with key:
+            for i in range(winreg.QueryInfoKey(key)[0]):
+                try:
+                    with winreg.OpenKey(key, winreg.EnumKey(key, i)) as entry:
+                        if winreg.QueryValueEx(entry, "DisplayName")[0] == "loopMIDI":
+                            return True
+                except OSError:
+                    continue
+    return False
 
 
 def note_name(note):

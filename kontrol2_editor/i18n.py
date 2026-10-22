@@ -197,6 +197,13 @@ ES = {
         "Set + Perilla 1 = swing  ·  Set + Perilla 2 = swing 1/16 o 1/8  ·  Set + Perilla 3 = tempo  ·  "
         "Faders → salida",
     "Tempo (BPM)": "Tempo (BPM)",
+    "To send the sequencer to a DAW you need loopMIDI (free, by Tobias Erichsen).":
+        "Para enviar el secuenciador a un DAW hace falta loopMIDI (gratis, de Tobias Erichsen).",
+    "Not needed with the internal clock and a USB or MIDI synth.":
+        "No hace falta con el reloj interno y un sinte por USB o MIDI.",
+    "Download loopMIDI": "Descargar loopMIDI",
+    "Install loopMIDI, create two ports in it and come back to this page.":
+        "Instala loopMIDI, crea dos puertos en él y vuelve a esta página.",
     "Internal clock": "Reloj interno",
     "Sequencer on: press Play on the nanoKONTROL 2.": "Secuenciador activado: pulsa Play en el nanoKONTROL 2.",
     "Stopped: press Play on the nanoKONTROL 2.": "Detenido: pulsa Play en el nanoKONTROL 2.",

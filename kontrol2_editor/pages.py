@@ -472,8 +472,16 @@ class SequencerPage(Page):
         self.text(PAGE_W - 28 - 120 - 12, 150, tr("Tempo (BPM)"), 12, theme.MUTED, anchor="e")
         self.tempo = Spin(self, PAGE_W - 28 - 120, 134, 120, 32, sequencer.MIN_TEMPO, sequencer.MAX_TEMPO,
                           app.seq_tempo, size=12)
-        self.text(28, 176, tr("Internal clock: plays on its own, with Play / Stop on the nanoKONTROL 2. To follow a DAW, "
-                              "receive its MIDI clock through a loopMIDI port."), 11, theme.DIM)
+        self._help = self.text(28, 176, tr("Internal clock: plays on its own, with Play / Stop on the nanoKONTROL 2. "
+                                           "To follow a DAW, receive its MIDI clock through a loopMIDI port."),
+                               11, theme.DIM)
+        self._notice = (
+            self.text(28, 168, tr("To send the sequencer to a DAW you need loopMIDI (free, by Tobias Erichsen)."),
+                      12, theme.WARN),
+            self.text(28, 188, tr("Not needed with the internal clock and a USB or MIDI synth."), 11, theme.MUTED))
+        self.download = Button(self, PAGE_W - 28 - 180, 172, 180, 28, tr("Download loopMIDI"), app.download_loopmidi,
+                               size=12)
+        self._download_items = (self.download._body, self.download._label)
 
         self.numbers = []
         for s in range(sequencer.STEPS):
@@ -504,6 +512,13 @@ class SequencerPage(Page):
         self.app.refresh_seq_ports()
         self._shown = None
         self.app.update_sequencer_page()
+
+    def set_loopmidi(self, installed):
+        """Show the help line when loopMIDI is installed, else the notice with its download button."""
+        self.itemconfigure(self._help, state="normal" if installed else "hidden")
+        for item in (*self._notice, *self._download_items):
+            self.itemconfigure(item, state="hidden" if installed else "normal")
+        self.download.set_enabled(not installed)
 
     def set_ports(self, outs, ins, out, clock):
         self.out.set_values(outs)

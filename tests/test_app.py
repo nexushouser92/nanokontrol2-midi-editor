@@ -42,6 +42,8 @@ class AppTest(unittest.TestCase):
         self.dialogs = []
         self.files = []
         self.runner = FakeRunner()
+        self.loopmidi = True
+        self.urls = []
         self.seq_saves = []
         self.app = gui.App(
             self.root, link=self.link, autostart=False, clock=lambda: self.now,
@@ -50,6 +52,7 @@ class AppTest(unittest.TestCase):
 
     def seq_kwargs(self):
         return dict(seq_runner=self.runner, seq_settings={}, save_seq_settings=self.seq_saves.append,
+                    loopmidi_check=lambda: self.loopmidi, open_url=self.urls.append,
                     port_lister=lambda: (["nanoKONTROL2", "loopMIDI clock"],
                                          ["nanoKONTROL2", "loopMIDI notes", "Microsoft GS Wavetable Synth"]))
 
@@ -332,6 +335,21 @@ class AppTest(unittest.TestCase):
         self.assertIn("press Play on the nanoKONTROL 2", self.app.sequencer_status()[0])
         self.app.seq_tempo(97)
         self.assertEqual(self.app.seq.tempo, 97)
+
+    def test_loopmidi_notice_only_when_it_is_missing(self):
+        self.connect()
+        self.app.show_section("sequencer")
+        page = self.page("sequencer")
+        self.assertFalse(page.download.enabled)
+        self.assertEqual(page.itemcget(page._notice[0], "state"), "hidden")
+        self.loopmidi = False
+        self.app.show_section("global")
+        self.app.show_section("sequencer")
+        self.assertTrue(page.download.enabled)
+        self.assertEqual(page.itemcget(page._notice[0], "state"), "normal")
+        self.assertEqual(page.itemcget(page._help, "state"), "hidden")
+        self.app.download_loopmidi()
+        self.assertEqual(self.urls, ["https://www.tobias-erichsen.de/software/loopmidi.html"])
 
     def test_sequencer_needs_two_ports(self):
         self.connect()

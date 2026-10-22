@@ -17,6 +17,7 @@ import queue
 import sys
 import time
 import tkinter as tk
+import webbrowser
 from tkinter import filedialog, messagebox
 
 from . import APP_NAME, __version__, edit, presets, protocol, sequencer, theme
@@ -92,7 +93,8 @@ class App:
                  ask_open=filedialog.askopenfilename,
                  ask_save=filedialog.asksaveasfilename,
                  clock=time.monotonic, seq_runner=None, seq_settings=None,
-                 port_lister=midi_win.list_ports, save_seq_settings=sequencer.save_settings):
+                 port_lister=midi_win.list_ports, save_seq_settings=sequencer.save_settings,
+                 loopmidi_check=sequencer.loopmidi_installed, open_url=webbrowser.open):
         self.root = root
         self.link = link or KontrolLink()
         self.ask_yes_no = ask_yes_no
@@ -122,6 +124,8 @@ class App:
         self._poll_id = None
 
         self.port_lister = port_lister
+        self.loopmidi_check = loopmidi_check
+        self.open_url = open_url
         self._save_seq_settings = save_seq_settings
         settings = sequencer.load_settings() if seq_settings is None else seq_settings
         self.seq = sequencer.Sequencer(protocol.Scene())
@@ -489,7 +493,12 @@ class App:
 
     def refresh_seq_ports(self):
         outs, ins = self.seq_ports()
+        self._page("sequencer").set_loopmidi(self.loopmidi_check())
         self._page("sequencer").set_ports(outs, [tr("Internal clock")] + ins, self.seq_output, self.seq_clock)
+
+    def download_loopmidi(self):
+        self.open_url(sequencer.LOOPMIDI_URL)
+        self.say(tr("Install loopMIDI, create two ports in it and come back to this page."))
 
     def set_seq_output(self, name):
         self.seq_output = name
