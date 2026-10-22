@@ -2,7 +2,8 @@
 
 - Polls every POLL_INTERVAL seconds for the device and opens it when found.
 - On linking, reads the full scene.
-- push(scene) schedules a write WRITE_DELAY seconds after the last edit.
+- push(scene) schedules a write WRITE_DELAY seconds after the last edit; push(scene, save=False)
+  only loads it into the device's RAM (used by the sequencer, so the stored scene is untouched).
 - If the device disappears, closes the port and resumes polling.
 
 All device I/O runs in a worker thread. The window reads from `events`:
@@ -37,10 +38,12 @@ class KontrolLink:
         self.port = None
         self.on_device = None   # scene the device currently has (last read or written)
         self.incoming = queue.SimpleQueue()
+        self.listener = None    # called with (status, data1, data2) on the MIDI driver thread
         self._learning = False
         self._channel = 0
         self._lock = threading.Lock()
         self._pending = None
+        self._save = True
         self._due = 0.0
         self._want_read = False
         self._next_poll = 0.0
@@ -57,9 +60,10 @@ class KontrolLink:
     def has_pending(self):
         return self._pending is not None
 
-    def push(self, scene):
+    def push(self, scene, save=True):
         with self._lock:
             self._pending = scene
+            self._save = save
             self._due = self.clock() + self.write_delay
 
     def flush(self):
@@ -107,8 +111,9 @@ class KontrolLink:
                 return
         with self._lock:
             settings = self._pending if self._pending is not None and now >= self._due else None
+            save = self._save
         if settings is not None:
-            self._write(settings)
+            self._write(settings, save)
 
     def _present(self):
         try:
@@ -138,6 +143,9 @@ class KontrolLink:
     def _on_short_all(self, status, data1, data2):
         """Runs on the MIDI driver thread: only touches thread-safe queues."""
         self.incoming.put((time.monotonic(), status, data1, data2))
+        listener = self.listener
+        if listener is not None:
+            listener(status, data1, data2)
         if not self._learning:
             return
         kind = status & 0xF0
@@ -175,10 +183,10 @@ class KontrolLink:
         self.events.put(("settings", scene))
         return True
 
-    def _write(self, scene):
+    def _write(self, scene, save=True):
         self.events.put(("writing", None))
         try:
-            device.write_scene(self.port, scene)
+            (device.write_scene if save else device.load_scene)(self.port, scene)
             self.on_device = scene
         except device.WriteFailedError as e:
             self._want_read = True

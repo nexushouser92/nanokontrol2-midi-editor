@@ -19,18 +19,21 @@ import time
 import tkinter as tk
 from tkinter import filedialog, messagebox
 
-from . import APP_NAME, __version__, edit, presets, protocol, theme
+from . import APP_NAME, __version__, edit, presets, protocol, sequencer, theme
 from .i18n import options, tr
 from .link import KontrolLink
+from . import midi_win
 from .midi_win import MidiError
 from .pages import (CalibrationPage, ChannelPage, ControlPage, GlobalPage, LedPage,
-                    MonitorPage, TransportPage, WaitingPage)
+                    MonitorPage, SequencerPage, TransportPage, WaitingPage)
 from .protocol import ProtocolError
 from .theme import u
 from .widgets import Button, Dropdown, Surface
 
 POLL_MS = 15
 SAVED_SECONDS = 2.0
+CLOCK_TIMEOUT = 1.0
+SEQ_SAVE_SECONDS = 2.0
 PULSE_SECONDS = 0.2
 MONITOR_KEEP = 400
 
@@ -41,6 +44,7 @@ PAGE_CLASSES = {
     "transport": TransportPage,
     "calibration": CalibrationPage,
     "leds": LedPage,
+    "sequencer": SequencerPage,
     "monitor": MonitorPage,
 }
 
@@ -87,7 +91,8 @@ class App:
                  ask_yes_no=messagebox.askyesno,
                  ask_open=filedialog.askopenfilename,
                  ask_save=filedialog.asksaveasfilename,
-                 clock=time.monotonic):
+                 clock=time.monotonic, seq_runner=None, seq_settings=None,
+                 port_lister=midi_win.list_ports, save_seq_settings=sequencer.save_settings):
         self.root = root
         self.link = link or KontrolLink()
         self.ask_yes_no = ask_yes_no
@@ -115,6 +120,21 @@ class App:
         self._visible = None
         self._chrome_state = None
         self._poll_id = None
+
+        self.port_lister = port_lister
+        self._save_seq_settings = save_seq_settings
+        settings = sequencer.load_settings() if seq_settings is None else seq_settings
+        self.seq = sequencer.Sequencer(protocol.Scene())
+        self.seq.load_dict(settings.get("pattern", {}))
+        self.seq_output = settings.get("output")
+        self.seq_clock = settings.get("clock")
+        self.seq_on = False
+        self._seq_scene = None
+        self._seq_leds_due = False
+        self._seq_saved = (self.seq.version, self.seq_output, self.seq_clock)
+        self._seq_changed_at = None
+        self.seq_runner = seq_runner or sequencer.SequencerRunner(
+            self.seq, lambda key, on: protocol.led_message(self._seq_scene, key, on), self.link.set_led)
 
         root.protocol("WM_DELETE_WINDOW", self.close)
         root.bind_all("<MouseWheel>", self._on_wheel)
@@ -187,17 +207,18 @@ class App:
         section("transport", tr("Transport"), 12, 190, 176)
         section("calibration", tr("Calibration"), 12, 232, 176)
         section("leds", tr("LED Test"), 12, 274, 176)
-        section("monitor", tr("MIDI Monitor"), 12, 316, 176)
+        section("sequencer", tr("Sequencer"), 12, 316, 176)
+        section("monitor", tr("MIDI Monitor"), 12, 358, 176)
 
-        nav.hline(16, 366, 168)
-        nav.text(16, 386, tr("SCENE"), 10, theme.MUTED, weight="bold")
-        self._open = Button(nav, 12, 402, 84, 32, tr("Open"), self.open_file, size=12)
-        self._save = Button(nav, 104, 402, 84, 32, tr("Save"), self.save_file, size=12)
-        self._templates = Dropdown(nav, 12, 442, 176, 32, options(edit.TEMPLATES), self.apply_template,
+        nav.hline(16, 408, 168)
+        nav.text(16, 428, tr("SCENE"), 10, theme.MUTED, weight="bold")
+        self._open = Button(nav, 12, 444, 84, 32, tr("Open"), self.open_file, size=12)
+        self._save = Button(nav, 104, 444, 84, 32, tr("Save"), self.save_file, size=12)
+        self._templates = Dropdown(nav, 12, 484, 176, 32, options(edit.TEMPLATES), self.apply_template,
                                    caption=tr("Templates"), size=12)
-        self._export = Button(nav, 12, 482, 84, 32, tr("Export CC"), self.export_cheatsheet, size=12)
-        self._undo = Button(nav, 104, 482, 84, 32, tr("Undo all"), self.undo_all, size=12)
-        self._factory = Button(nav, 12, 522, 176, 32, tr("Factory reset"), self.factory_reset,
+        self._export = Button(nav, 12, 524, 84, 32, tr("Export CC"), self.export_cheatsheet, size=12)
+        self._undo = Button(nav, 104, 524, 84, 32, tr("Undo all"), self.undo_all, size=12)
+        self._factory = Button(nav, 12, 564, 176, 32, tr("Factory reset"), self.factory_reset,
                                style="danger", size=12)
 
     def _build_footer(self):
@@ -259,7 +280,15 @@ class App:
         self._present()
         self._update_chrome()
 
+    def _seq_blocks(self):
+        """While the sequencer runs the device holds the sequencer scene: scene changes must wait."""
+        if self.seq_on:
+            self.say(tr("Stop the sequencer to change the scene."), theme.WARN)
+        return self.seq_on
+
     def _replace_scene(self, scene, push):
+        if push and self._seq_blocks():
+            return
         self.scene = scene
         self.seen.clear()
         self._scene_changed()
@@ -267,7 +296,7 @@ class App:
             self.link.push(scene)
 
     def _commit(self, scene):
-        if self.scene is None or scene == self.scene:
+        if self.scene is None or scene == self.scene or self._seq_blocks():
             return
         self.scene = scene
         self._failed = False
@@ -332,7 +361,7 @@ class App:
 
     def send_to_device(self):
         """Send the whole scene now and save it on the device (edits are also sent as you make them)."""
-        if self.scene is None or not self.link.linked:
+        if self.scene is None or not self.link.linked or self._seq_blocks():
             return
         self._failed = False
         self.link.push(self.scene)
@@ -414,7 +443,7 @@ class App:
             self._set_led(key, on)
 
     def _set_led(self, key, on):
-        if self.scene is None:
+        if self.scene is None or self._seq_blocks():
             return
         message = protocol.led_message(self.scene, key, on)
         if message is None:
@@ -446,6 +475,114 @@ class App:
             row.apply_learned(kind, number)
             self.say(tr("Learned {kind} {number}.", kind="CC" if kind == "cc" else tr("Note"), number=number), theme.OK)
 
+    # ------------------------------------------------------------------ sequencer
+
+    def seq_ports(self):
+        """(outputs, inputs) the sequencer can use: every MIDI port except the nanoKONTROL 2's own."""
+        try:
+            ins, outs = self.port_lister()
+        except OSError:
+            return [], []
+        own = ("nanoKONTROL2", "KONTROL2")
+        keep = lambda names: [n for n in names if n and not any(o.upper() in n.upper() for o in own)]
+        return keep(outs), keep(ins)
+
+    def refresh_seq_ports(self):
+        outs, ins = self.seq_ports()
+        self._page("sequencer").set_ports(outs, ins, self.seq_output, self.seq_clock)
+
+    def set_seq_output(self, name):
+        self.seq_output = name
+        self._seq_changed_at = self.clock()
+
+    def set_seq_clock(self, name):
+        self.seq_clock = name
+        self._seq_changed_at = self.clock()
+
+    def toggle_sequencer(self):
+        if self.seq_on:
+            self.stop_sequencer()
+        else:
+            self.start_sequencer()
+
+    def start_sequencer(self):
+        if self.seq_on:
+            return
+        if self.scene is None or not self.link.linked:
+            self.say(tr("Connect the nanoKONTROL 2 to use the sequencer."), theme.WARN)
+            return
+        if not self.seq_output or not self.seq_clock:
+            self.say(tr("Choose the 'Notes to' and 'Clock from' MIDI ports first."), theme.WARN)
+            return
+        if self.seq_output == self.seq_clock:
+            self.say(tr("Use two different ports: one for the notes and one for the clock."), theme.WARN)
+            return
+        self.cancel_learn()
+        self._seq_scene = sequencer.sequencer_scene(self.scene)
+        self.seq.set_scene(self._seq_scene)
+        try:
+            self.seq_runner.start(self.seq_output, self.seq_clock)
+        except MidiError as e:
+            self.say(tr("Could not open the MIDI port: {error}", error=e), theme.ERROR)
+            return
+        self.seq_on = True
+        self._seq_leds_due = True
+        self.link.listener = self.seq_runner.device_message
+        self.link.push(self._seq_scene, save=False)
+        self.link.flush()
+        self._chrome_state = None
+        self.say(tr("Sequencer on: press Play in your DAW."), theme.OK)
+
+    def stop_sequencer(self):
+        if not self.seq_on:
+            return
+        self.link.listener = None
+        self.seq_runner.stop()
+        self.seq_on = False
+        if self.link.linked and self.scene is not None:
+            self.link.push(self.scene, save=False)
+            self.link.flush()
+        self._chrome_state = None
+        self.say(tr("Sequencer off: the nanoKONTROL 2 is back to your scene."))
+
+    def seq_toggle(self, track, step):
+        self.seq_runner.post(self.seq.toggle_step, track, step)
+
+    def seq_select(self, track):
+        self.seq_runner.post(self.seq.select, track)
+
+    def seq_solo(self, track):
+        self.seq_runner.post(self.seq.toggle_solo, track)
+
+    def sequencer_status(self):
+        if not self.seq_on:
+            return tr("Sequencer off."), theme.MUTED
+        runner = self.seq_runner
+        bpm = f"{runner.bpm:.0f}" if runner.bpm else "-"
+        if runner.last_clock is None or self.clock() - runner.last_clock > CLOCK_TIMEOUT:
+            return tr("Waiting for the DAW clock: press Play in your DAW."), theme.WARN
+        if self.seq.playing and self.seq.position >= 0:
+            return tr("Playing  ·  {bpm} BPM  ·  step {step}", bpm=bpm, step=self.seq.position + 1), theme.OK
+        return tr("Stopped  ·  {bpm} BPM", bpm=bpm), theme.MUTED
+
+    def update_sequencer_page(self):
+        page = self._visible
+        if isinstance(page, SequencerPage):
+            page.show(self.seq, self.seq_on, *self.sequencer_status())
+
+    def _autosave_sequencer(self, force=False):
+        state = (self.seq.version, self.seq_output, self.seq_clock)
+        if state == self._seq_saved:
+            return
+        now = self.clock()
+        if self._seq_changed_at is None:
+            self._seq_changed_at = now
+        if force or now - self._seq_changed_at >= SEQ_SAVE_SECONDS:
+            self._seq_saved = state
+            self._seq_changed_at = None
+            self._save_seq_settings({"pattern": self.seq.to_dict(), "output": self.seq_output,
+                                     "clock": self.seq_clock})
+
     # ------------------------------------------------------------------ monitor
 
     def clear_monitor(self):
@@ -471,6 +608,8 @@ class App:
         self._drain_midi()
         self._expire_pulses()
         self._update_chrome()
+        self.update_sequencer_page()
+        self._autosave_sequencer()
 
     def _drain_events(self):
         while True:
@@ -497,6 +636,9 @@ class App:
         elif kind == "written":
             self._writing = self._failed = False
             self._written_at = self.clock()
+            if self.seq_on and self._seq_leds_due:
+                self._seq_leds_due = False
+                self.seq_runner.post(self.seq.all_leds)
         elif kind == "write_failed":
             self._writing, self._failed = False, True
             self.say(tr("Write failed: {error}", error=payload), theme.ERROR)
@@ -504,6 +646,8 @@ class App:
             self._learned(*payload)
         elif kind == "searching":
             self._reading = self._writing = False
+            if self.seq_on:
+                self.stop_sequencer()
             busy = isinstance(payload, MidiError) and "open" in str(payload).lower()
             note = tr("Port busy: close the other program using the device.") if busy else str(payload or "")
             self._page("waiting").set_note(note)
@@ -522,7 +666,7 @@ class App:
         self.monitor_log.extend(messages)
         if isinstance(self._visible, MonitorPage):
             self._visible.append_messages(self.monitor_start, messages)
-        if self.scene is not None:
+        if self.scene is not None and not self.seq_on:
             self._route(messages)
 
     def _route(self, messages):
@@ -598,10 +742,10 @@ class App:
         for widget in (self._save, self._export, self._factory, self._templates):
             widget.set_enabled(scene is not None)
         self._undo.set_enabled(self.original is not None and linked)
-        self._send.set_enabled(scene is not None and linked and not busy)
+        self._send.set_enabled(scene is not None and linked and not busy and not self.seq_on)
 
     def _on_status_click(self):
-        if not self.link.linked:
+        if not self.link.linked or self._seq_blocks():
             return
         if self._failed and self.scene is not None:
             self._failed = False
@@ -615,6 +759,8 @@ class App:
         if self._poll_id is not None:
             self.root.after_cancel(self._poll_id)
         self.cancel_learn()
+        self.stop_sequencer()
+        self._autosave_sequencer(force=True)
         self.link.stop()
         self.root.destroy()
 

@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from kontrol2_editor import APP_NAME, edit, gui, i18n, pages, protocol, theme
 from kontrol2_editor.protocol import Scene
 
-from fakes import FakeLink
+from fakes import FakeLink, FakeRunner
 
 i18n.LANG = "en"  # the texts checked below are the English ones
 
@@ -41,10 +41,17 @@ class AppTest(unittest.TestCase):
         self.answer = True
         self.dialogs = []
         self.files = []
+        self.runner = FakeRunner()
+        self.seq_saves = []
         self.app = gui.App(
             self.root, link=self.link, autostart=False, clock=lambda: self.now,
             ask_yes_no=self._confirm, ask_open=lambda **kw: self.files.pop(0),
-            ask_save=lambda **kw: self.files.pop(0))
+            ask_save=lambda **kw: self.files.pop(0), **self.seq_kwargs())
+
+    def seq_kwargs(self):
+        return dict(seq_runner=self.runner, seq_settings={}, save_seq_settings=self.seq_saves.append,
+                    port_lister=lambda: (["nanoKONTROL2", "loopMIDI clock"],
+                                         ["nanoKONTROL2", "loopMIDI notes", "Microsoft GS Wavetable Synth"]))
 
     def tearDown(self):
         self.root.destroy()
@@ -98,7 +105,7 @@ class AppTest(unittest.TestCase):
         self.connect()
         expected = {"global": pages.GlobalPage, "transport": pages.TransportPage,
                     "calibration": pages.CalibrationPage, "leds": pages.LedPage,
-                    "monitor": pages.MonitorPage}
+                    "sequencer": pages.SequencerPage, "monitor": pages.MonitorPage}
         for section, cls in expected.items():
             self.assertIsInstance(self.page(section), cls)
         for strip in range(1, 9):
@@ -284,7 +291,7 @@ class AppTest(unittest.TestCase):
         try:
             self.root = gui.create_root()
             self.app = gui.App(self.root, link=self.link, autostart=False, clock=lambda: self.now,
-                               ask_yes_no=self._confirm)
+                               ask_yes_no=self._confirm, **self.seq_kwargs())
             self.connect()
             self.assertEqual(self.app._send._text, "Enviar al nanoKONTROL")
             self.assertEqual(self.app._led_chip._text, "LEDs ext.: NO")
@@ -296,6 +303,73 @@ class AppTest(unittest.TestCase):
             self.assertEqual(self.app.scene.transport.play.assign, 0)
         finally:
             i18n.LANG = "en"
+
+    # --- sequencer ---
+
+    def start_sequencer(self):
+        self.connect()
+        self.app.show_section("sequencer")
+        self.app.set_seq_output("loopMIDI notes")
+        self.app.set_seq_clock("loopMIDI clock")
+        self.app.start_sequencer()
+
+    def test_sequencer_lists_ports_without_the_device_itself(self):
+        self.connect()
+        self.app.show_section("sequencer")
+        page = self.page("sequencer")
+        self.assertEqual(page.out.values, ["loopMIDI notes", "Microsoft GS Wavetable Synth"])
+        self.assertEqual(page.clock.values, ["loopMIDI clock"])
+
+    def test_sequencer_needs_two_ports(self):
+        self.connect()
+        self.app.start_sequencer()
+        self.assertFalse(self.app.seq_on)
+        self.assertIsNone(self.runner.started)
+
+    def test_sequencer_loads_its_scene_into_ram_and_restores_the_users(self):
+        self.start_sequencer()
+        self.assertTrue(self.app.seq_on)
+        self.assertEqual(self.runner.started, ("loopMIDI notes", "loopMIDI clock"))
+        self.assertEqual(self.link.saved[-1], False)
+        self.assertEqual(self.link.pushed[-1].led_mode, 1)
+        self.assertEqual(self.link.listener, self.runner.device_message)
+        self.link.events.put(("written", self.link.pushed[-1]))
+        self.app.tick()
+        self.assertIn(("led", "play", False), self.runner.actions)
+        self.app.toggle_sequencer()
+        self.assertFalse(self.app.seq_on)
+        self.assertIsNone(self.link.listener)
+        self.assertIs(self.link.pushed[-1], self.app.scene)
+        self.assertEqual(self.link.saved[-1], False)
+
+    def test_scene_edits_wait_while_sequencing(self):
+        self.start_sequencer()
+        pushes = len(self.link.pushed)
+        self.app.set_ctrl(0, "slider", max_val=90)
+        self.app.send_to_device()
+        self.assertEqual(len(self.link.pushed), pushes)
+        self.assertEqual(self.app.scene.groups[0].slider.max_val, 127)
+
+    def test_sequencer_stops_when_the_device_goes_away(self):
+        self.start_sequencer()
+        self.link.events.put(("searching", None))
+        self.app.tick()
+        self.assertFalse(self.app.seq_on)
+        self.assertIsNone(self.runner.started)
+
+    def test_sequencer_grid_edits_the_pattern_and_is_saved(self):
+        self.connect()
+        self.app.show_section("sequencer")
+        page = self.page("sequencer")
+        self.app.seq_toggle(2, 5)
+        self.app.seq_solo(1)
+        self.app.tick()
+        self.assertTrue(self.app.seq.steps[2][5])
+        self.assertEqual(page.cells[2][5].style, "cell_on")
+        self.assertEqual(page.solos[1].style, "ok")
+        self.now += gui.SEQ_SAVE_SECONDS + 1
+        self.app.tick()
+        self.assertEqual(self.seq_saves[-1]["pattern"]["steps"][2][5], 1)
 
     def test_send_button_pushes_the_whole_scene_now(self):
         self.connect()

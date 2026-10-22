@@ -56,8 +56,8 @@ def read_scene(port, channel=0, timeout=REPLY_TIMEOUT, retries=RETRIES):
     return reply.scene, reply.channel
 
 
-def write_scene(port, scene, timeout=REPLY_TIMEOUT, retries=RETRIES):
-    """Write scene to device RAM then save to flash. Raises DeviceError on failure."""
+def load_scene(port, scene, timeout=REPLY_TIMEOUT, retries=RETRIES):
+    """Load scene into device RAM only: it is used right away but lost when the device is unplugged."""
     port.drain()
     load_msg = protocol.build_scene_data(scene)
 
@@ -71,6 +71,10 @@ def write_scene(port, scene, timeout=REPLY_TIMEOUT, retries=RETRIES):
     else:
         raise DeviceError("nanoKONTROL 2 did not acknowledge scene load")
 
+
+def write_scene(port, scene, timeout=REPLY_TIMEOUT, retries=RETRIES):
+    """Write scene to device RAM then save to flash. Raises DeviceError on failure."""
+    load_scene(port, scene, timeout, retries)
     save_msg = protocol.build_scene_write(scene.global_channel)
     port.send(save_msg)
     reply = _wait_for(port, lambda r: isinstance(r, (WriteOk, WriteErr)), timeout)

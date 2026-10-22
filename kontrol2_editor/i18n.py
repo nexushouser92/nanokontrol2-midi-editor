@@ -175,6 +175,38 @@ ES = {
     "External LED mode is off. Switch it on in Global > LED mode, or with the Ext LEDs button.":
         "El modo de LEDs externo está desactivado. Actívalo en Global > Modo de LEDs o con el botón LEDs ext.",
 
+    # sequencer page
+    "Sequencer": "Secuenciador",
+    "8 tracks × 16 steps, played from the nanoKONTROL 2 and clocked by your DAW":
+        "8 pistas × 16 pasos, tocado desde el nanoKONTROL 2 y sincronizado con tu DAW",
+    "Start sequencer": "Activar secuenciador",
+    "Stop sequencer": "Desactivar secuenciador",
+    "Notes to": "Notas a",
+    "Clock from": "Reloj desde",
+    "Choose a port": "Elige un puerto",
+    "Setup: create two ports in loopMIDI. In the DAW, receive MIDI from the 'Notes to' "
+    "port and send MIDI clock to the 'Clock from' port.":
+        "Preparación: crea dos puertos en loopMIDI. En el DAW, recibe MIDI del puerto de 'Notas a' "
+        "y envía el reloj MIDI al puerto de 'Reloj desde'.",
+    "On the device: Mute = steps 1-8  ·  Rec = steps 9-16  ·  Solo = solo of each track  ·  "
+    "Track ◀ ▶ = track  ·  Knobs = note  ·  Faders → DAW":
+        "En el equipo: Mute = pasos 1-8  ·  Rec = pasos 9-16  ·  Solo = solo de cada pista  ·  "
+        "Track ◀ ▶ = pista  ·  Perillas = nota  ·  Faders → DAW",
+    "Stop the sequencer to change the scene.": "Desactiva el secuenciador para cambiar la escena.",
+    "Connect the nanoKONTROL 2 to use the sequencer.": "Conecta el nanoKONTROL 2 para usar el secuenciador.",
+    "Choose the 'Notes to' and 'Clock from' MIDI ports first.":
+        "Primero elige los puertos MIDI de 'Notas a' y 'Reloj desde'.",
+    "Use two different ports: one for the notes and one for the clock.":
+        "Usa dos puertos distintos: uno para las notas y otro para el reloj.",
+    "Could not open the MIDI port: {error}": "No se pudo abrir el puerto MIDI: {error}",
+    "Sequencer on: press Play in your DAW.": "Secuenciador activado: pulsa Play en tu DAW.",
+    "Sequencer off: the nanoKONTROL 2 is back to your scene.":
+        "Secuenciador desactivado: el nanoKONTROL 2 vuelve a tu escena.",
+    "Sequencer off.": "Secuenciador desactivado.",
+    "Waiting for the DAW clock: press Play in your DAW.": "Esperando el reloj del DAW: pulsa Play en tu DAW.",
+    "Playing  ·  {bpm} BPM  ·  step {step}": "Reproduciendo  ·  {bpm} BPM  ·  paso {step}",
+    "Stopped  ·  {bpm} BPM": "Detenido  ·  {bpm} BPM",
+
     # MIDI monitor page
     "Messages sent by the device, newest first": "Mensajes enviados por el equipo, los más recientes primero",
     "Clear": "Borrar",

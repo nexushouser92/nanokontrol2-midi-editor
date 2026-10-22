@@ -2,7 +2,7 @@
 eight strips (only its values change), so the whole interface needs just seven canvases."""
 import tkinter as tk
 
-from . import edit, protocol, theme
+from . import edit, protocol, sequencer, theme
 from .i18n import options, tr
 from .theme import PAGE_H, PAGE_W, u
 from .widgets import Button, Dot, Dropdown, RangeBar, Segmented, Spin, Surface
@@ -450,3 +450,75 @@ class MonitorPage(Page):
         self.log.delete("1.0", "end")
         self.log.configure(state="disabled")
         self.append_messages(start, messages)
+
+
+# --------------------------------------------------------------------------- Sequencer
+
+class SequencerPage(Page):
+    STEP_X, STEP_W, ROW_Y, ROW_PITCH, ROW_H = 152, 38, 230, 40, 34
+
+    def __init__(self, app):
+        super().__init__(app)
+        self.heading(tr("Sequencer"), tr("8 tracks × 16 steps, played from the nanoKONTROL 2 and clocked by your DAW"))
+        self.power = Button(self, PAGE_W - 28 - 190, 18, 190, 34, tr("Start sequencer"), app.toggle_sequencer,
+                            style="accent", size=12, weight="bold")
+
+        self.text(28, 106, tr("Notes to"), 12, theme.MUTED)
+        self.out = Dropdown(self, 110, 88, 250, 36, [], app.set_seq_output, size=12)
+        self.text(392, 106, tr("Clock from"), 12, theme.MUTED)
+        self.clock = Dropdown(self, 482, 88, 250, 36, [], app.set_seq_clock, size=12)
+        self._status = self.text(28, 150, "", 13, theme.MUTED)
+        self.text(28, 176, tr("Setup: create two ports in loopMIDI. In the DAW, receive MIDI from the 'Notes to' "
+                              "port and send MIDI clock to the 'Clock from' port."), 11, theme.DIM)
+
+        self.numbers = []
+        for s in range(sequencer.STEPS):
+            x = self._step_x(s) + self.STEP_W / 2
+            self.numbers.append(self.text(x, 212, str(s + 1), 11, theme.MUTED, anchor="center", weight="bold"))
+        self.tracks, self.solos, self.cells = [], [], []
+        for t in range(sequencer.TRACKS):
+            y = self.ROW_Y + t * self.ROW_PITCH
+            self.tracks.append(Button(self, 28, y, 74, self.ROW_H, "", lambda t=t: app.seq_select(t),
+                                      style="nav", align="left", size=12, weight="bold"))
+            self.solos.append(Button(self, 108, y, 34, self.ROW_H, "S", lambda t=t: app.seq_solo(t),
+                                     style="cell", size=11, weight="bold"))
+            row = [Button(self, self._step_x(s), y, self.STEP_W, self.ROW_H, "",
+                          lambda t=t, s=s: app.seq_toggle(t, s), style="cell")
+                   for s in range(sequencer.STEPS)]
+            self.cells.append(row)
+        self.text(28, 572, tr("On the device: Mute = steps 1-8  ·  Rec = steps 9-16  ·  Solo = solo of each track  ·  "
+                              "Track ◀ ▶ = track  ·  Knobs = note  ·  Faders → DAW"), 11, theme.MUTED)
+        self._shown = None
+
+    def _step_x(self, step):
+        return self.STEP_X + step * 44 + (step // 4) * 8
+
+    def activate(self):
+        self.app.refresh_seq_ports()
+        self._shown = None
+        self.app.update_sequencer_page()
+
+    def set_ports(self, outs, ins, out, clock):
+        self.out.set_values(outs)
+        self.clock.set_values(ins)
+        self.out.set(out or tr("Choose a port"))
+        self.clock.set(clock or tr("Choose a port"))
+
+    def show(self, seq, on, status, status_color):
+        self.power.set_text(tr("Stop sequencer") if on else tr("Start sequencer"))
+        self.power.set_style("danger" if on else "accent")
+        self.out.set_enabled(not on)
+        self.clock.set_enabled(not on)
+        self.itemconfigure(self._status, text=status, fill=status_color)
+        state = (seq.version, seq.position)
+        if state == self._shown:
+            return
+        self._shown = state
+        for t in range(sequencer.TRACKS):
+            self.tracks[t].set_text(f"{t + 1}   {sequencer.note_name(seq.notes[t])}")
+            self.tracks[t].set_style("nav_on" if t == seq.selected else "nav")
+            self.solos[t].set_style("ok" if seq.solo[t] else "cell")
+            for s, cell in enumerate(self.cells[t]):
+                cell.set_style("cell_on" if seq.steps[t][s] else "cell")
+        for s, item in enumerate(self.numbers):
+            self.itemconfigure(item, fill=theme.OK if s == seq.position else theme.MUTED)

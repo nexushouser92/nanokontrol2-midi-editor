@@ -12,6 +12,8 @@ class FakeLink:
         self.leds = []
         self.learning = False
         self.read_requests = 0
+        self.saved = []
+        self.listener = None
 
     def start(self):
         pass
@@ -19,8 +21,9 @@ class FakeLink:
     def stop(self):
         pass
 
-    def push(self, scene):
+    def push(self, scene, save=True):
         self.pushed.append(scene)
+        self.saved.append(save)
         self.has_pending = True
 
     def flush(self):
@@ -38,3 +41,33 @@ class FakeLink:
 
     def cancel_learn(self):
         self.learning = False
+
+
+class FakeRunner:
+    """A SequencerRunner stand-in: no ports, calls run at once and their actions are recorded."""
+
+    def __init__(self):
+        self.started = None
+        self.actions = []
+        self.device = []
+        self.bpm = None
+        self.last_clock = None
+        self.fail = None
+
+    @property
+    def running(self):
+        return self.started is not None
+
+    def start(self, out_name, clock_name):
+        if self.fail:
+            raise self.fail
+        self.started = (out_name, clock_name)
+
+    def stop(self):
+        self.started = None
+
+    def device_message(self, status, data1, data2):
+        self.device.append((status, data1, data2))
+
+    def post(self, call, *args):
+        self.actions.extend(call(*args))
