@@ -21,7 +21,6 @@ import threading
 import time
 
 from . import device, midi_win
-from .protocol import LED_STATUS
 
 POLL_INTERVAL = 1.0
 WRITE_DELAY = 0.4
@@ -118,13 +117,16 @@ class KontrolLink:
             return False
         return midi_win.find_port(ins) is not None and midi_win.find_port(outs) is not None
 
-    def set_led(self, cc, on):
-        """Send a CC on channel 16 to control a button LED (External LED mode)."""
-        if self.port is not None:
-            try:
-                self.port.send_short(LED_STATUS, cc & 0x7F, 0x7F if on else 0x00)
-            except Exception:
-                pass
+    def set_led(self, message):
+        """Send a button's own (status, data1, data2) message to light its LED (External LED mode).
+        Returns False when there is no device or the message could not be sent."""
+        if self.port is None:
+            return False
+        try:
+            self.port.send_short(*message)
+        except Exception:
+            return False
+        return True
 
     def start_learn(self):
         """The next CC or Note On from the device is reported once as a "learned" event."""

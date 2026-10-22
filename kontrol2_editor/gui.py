@@ -391,12 +391,20 @@ class App:
         self._set_led(key, not self._leds.get(key, False))
 
     def set_all_leds(self, on):
-        for key in protocol.LED_CCS:
+        for key in protocol.LED_BUTTONS:
             self._set_led(key, on)
 
     def _set_led(self, key, on):
+        if self.scene is None:
+            return
+        message = protocol.led_message(self.scene, key, on)
+        if message is None:
+            self.say(f"{key.replace('_', ' ').title()} is disabled in the scene: it has no LED message.", theme.WARN)
+            return
+        if not self.link.set_led(message):
+            self.say("Could not send the LED message: is the nanoKONTROL 2 linked?", theme.ERROR)
+            return
         self._leds[key] = on
-        self.link.set_led(protocol.LED_CCS[key], on)
         self._page("leds").set_led(key, on)
 
     def start_learn(self, row):

@@ -341,15 +341,26 @@ class AppTest(unittest.TestCase):
 
     # --- LEDs ---
 
-    def test_led_buttons_send_cc_on_channel_16(self):
+    def test_led_buttons_send_the_buttons_own_message(self):
         self.connect()
         self.app.toggle_led("play")
         self.app.toggle_led("play")
-        self.assertEqual(self.link.leds, [(0x29, True), (0x29, False)])
+        self.assertEqual(self.link.leds, [(0xB0, 0x29, 0x7F), (0xB0, 0x29, 0x00)])
         self.link.leds.clear()
         self.app.set_all_leds(True)
-        self.assertEqual(len(self.link.leds), len(protocol.LED_CCS))
+        self.assertEqual(len(self.link.leds), len(protocol.LED_BUTTONS))
         self.assertEqual(self.page("leds").buttons["solo_3"]._text, "On")
+
+    def test_led_follows_channel_and_assignment(self):
+        self.connect()
+        self.app.set_global("global_channel", 4)
+        self.app.set_ctrl(2, "mute", assign=2, cmd=60)
+        self.app.toggle_led("mute_3")
+        self.assertEqual(self.link.leds[-1], (0x94, 60, 0x7F))
+        self.app.set_ctrl(2, "mute", assign=0)
+        self.link.leds.clear()
+        self.app.toggle_led("mute_3")
+        self.assertEqual(self.link.leds, [])
 
     def test_led_page_warns_when_external_mode_is_off(self):
         self.connect()

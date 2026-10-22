@@ -29,8 +29,9 @@ class FakeLink:
     def request_read(self):
         self.read_requests += 1
 
-    def set_led(self, cc, on):
-        self.leds.append((cc, on))
+    def set_led(self, message):
+        self.leds.append(message)
+        return True
 
     def start_learn(self):
         self.learning = True

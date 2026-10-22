@@ -77,16 +77,31 @@ CUSTOM_DAW_LEN = 5
 CUSTOM_DAW_VALID = (0, 41, 42, 46, 47, 48, 49, 50, 127, 255)
 CUSTOM_DAW_LABELS = ("Assign 1", "Assign 2", "Assign 3", "Assign 4", "Assign 5")
 
-# LED control: CC messages on channel 16 (status 0xBF) in External LED mode
-LED_STATUS = 0xBF
-LED_CCS = {
-    "play": 0x29, "stop": 0x2A, "rew": 0x2B, "ff": 0x2C, "rec": 0x2D, "cycle": 0x2E,
-    "prev_track": 0x3A, "next_track": 0x3B,
-    "set_marker": 0x3C, "prev_marker": 0x3D, "next_marker": 0x3E,
-    **{f"solo_{i+1}":  0x20 + i for i in range(8)},
-    **{f"mute_{i+1}":  0x30 + i for i in range(8)},
-    **{f"prime_{i+1}": 0x40 + i for i in range(8)},
-}
+# LED control (External LED mode): the device lights a button's LED when it receives the same
+# message that button sends - its CC or Note, on its group's channel (or the global channel).
+LED_BUTTONS = (
+    *(f"{kind}_{i + 1}" for kind in ("solo", "mute", "prime") for i in range(NUM_GROUPS)),
+    *TRANSPORT_CONTROLS,
+)
+
+
+def led_message(scene, key, on):
+    """(status, data1, data2) that turns the LED of button `key` on or off, or None when the
+    button is disabled in the scene and so has no message to light it with."""
+    if key in TRANSPORT_CONTROLS:
+        group, ctrl = scene.transport, scene.transport.get_ctrl(key)
+    else:
+        kind, number = key.rsplit("_", 1)
+        group = scene.groups[int(number) - 1]
+        ctrl = group.get_ctrl(kind)
+    channel = (group.channel if group.channel < 16 else scene.global_channel) & 0x0F
+    value = 0x7F if on else 0x00
+    if ctrl.assign == 1:
+        return 0xB0 | channel, ctrl.cmd & 0x7F, value
+    if ctrl.assign == 2:
+        return 0x90 | channel, ctrl.cmd & 0x7F, value
+    return None
+
 
 class ProtocolError(Exception):
     pass
