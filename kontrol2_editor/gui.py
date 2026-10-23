@@ -183,7 +183,7 @@ class App:
         header.place(x=0, y=0)
         header.hline(0, theme.HEADER_H - 1, width)
         try:
-            logo = Image.open(icon_path("icon.png")).resize((u(40), u(40)), Image.LANCZOS)
+            logo = Image.open(icon_path("logo.png")).resize((u(40), u(40)), Image.LANCZOS)
             self._logo = ImageTk.PhotoImage(logo, master=self.root)
             header.create_image(u(14), u(11), image=self._logo, anchor="nw")
         except OSError:
